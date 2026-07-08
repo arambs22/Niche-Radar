@@ -8,6 +8,7 @@ import {
 } from "./googleTrends.service.js";
 import type { KeywordConfig } from "../config/keywords.js";
 import { logger } from "../utils/logger.js";
+import { getTodayLocal } from "../utils/date.js";
 
 const BASE_DELAY_MS = 5000;
 const JITTER_MS = 3000; // variación aleatoria para no ser tan predecibles
@@ -46,7 +47,7 @@ async function collectForKeywordAndRegion(
   term: string,
   geo: string
 ): Promise<CollectionStatus> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getTodayLocal();
 
   const alreadyCollectedToday = await db
     .select()
@@ -114,6 +115,7 @@ export async function collectTrendsForAll(
 
     if (status === "skipped") {
       skipped++;
+      await sleep(700);
       continue; // sin esperar — no gastamos request, no hay razón para pausar
     }
 
