@@ -29,3 +29,5 @@ postgres-data/
 
 # Test / coverage
 coverage/
+
+.claude/

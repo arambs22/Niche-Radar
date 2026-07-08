@@ -3,34 +3,89 @@
 ![Status](https://img.shields.io/badge/status-under%20development-yellow)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-Herramienta gratuita y de código abierto para detectar tendencias de diseño y
-estética **antes de que se saturen** en marketplaces como Etsy — pensada para
-creadores de clip art y assets digitales generados con IA.
+A free, open-source tool to detect design and aesthetic trends **before they
+saturate** marketplaces like Etsy — built for creators of clip art and
+AI-generated digital assets.
 
-## Why (¿por qué existe esto?)
+## Why
 
-Herramientas como eRank o Trend2Design resuelven este problema, pero son de
-pago y de código cerrado. NicheRadar busca ofrecer lo esencial —seguimiento
-de volumen de búsqueda en Google Trends, búsquedas relacionadas en alza, y
-(opcionalmente) cruce con listings reales de Etsy para medir saturación— de
-forma gratuita, transparente y fácil de auto-hospedar.
+Tools like eRank or Alura solve this problem, but they're paid and
+closed-source. NicheRadar aims to offer the essentials — Google Trends search
+volume tracking, rising related searches, and (optionally) cross-referencing
+with real Etsy listings to measure market saturation — for free, transparently,
+and easy to self-host.
 
-Nace como proyecto personal de [Kliparama](https://www.etsy.com/shop/Kliparama)
-(tienda de clip art en Etsy) y como pieza de portafolio técnico.
+Born as a personal project for [Kliparama](https://www.etsy.com/shop/Kliparama)
+(my clip art shop on Etsy) and as a technical portfolio piece.
 
-## Stack técnico
+## Tech Stack
 
 - **Backend:** TypeScript + Express
-- **Base de datos:** PostgreSQL (vía Docker Compose)
-- **Datos de tendencias:** Google Trends (no requiere API key)
-- **Integración opcional:** Etsy Open API v3 (requiere API key propia)
-- **Dashboard:** por definir (se documentará al llegar a esa fase)
+- **Database:** PostgreSQL (via Docker Compose)
+- **ORM:** Drizzle ORM + drizzle-kit
+- **Trend data:** Google Trends (no API key required)
+- **Optional integration:** Etsy Open API v3 (requires your own API key)
+- **Dashboard:** TBD (will be documented once that phase is reached)
 
 ## Getting Started
 
-> 🚧 El proyecto está en construcción. Esta sección se irá completando con
-> instrucciones reales conforme avancen las fases de desarrollo.
+### Prerequisites
 
-## Licencia
+- [Node.js](https://nodejs.org/) 20 or higher
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (to run PostgreSQL)
+
+### Setup
+
+1. Clone the repo:
+```bash
+   git clone https://github.com/arambs22/Niche-Radar.git
+   cd Niche-Radar
+```
+
+2. Install dependencies:
+```bash
+   npm install
+```
+
+3. Copy the environment variables file and adjust if needed:
+```bash
+   cp .env.example .env
+```
+
+4. Start PostgreSQL with Docker Compose:
+```bash
+   docker compose up -d
+```
+
+5. Start the development server (hot-reload):
+```bash
+   npm run dev
+```
+
+6. Verify everything is connected. The server runs on `http://localhost:3000`
+   by default. Check the health endpoint:
+```bash
+   curl http://localhost:3000/health
+```
+
+   Expected response:
+```json
+   {
+     "status": "ok",
+     "database": "connected",
+     "etsyIntegration": "disabled"
+   }
+```
+
+   `etsyIntegration` will show `"disabled"` unless you've configured an Etsy
+   API key in your `.env` file — Etsy integration is optional and the app
+   works fully without it, using Google Trends data only.
+
+## Project Status
+
+🚧 Actively under development. See open [issues](https://github.com/arambs22/Niche-Radar/issues)
+and the commit history for current progress.
+
+## License
 
 [MIT](./LICENSE) © 2026 Aram Barsegyan
