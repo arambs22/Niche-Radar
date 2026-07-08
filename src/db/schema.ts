@@ -1,20 +1,20 @@
 import { pgTable, serial, text, integer, timestamp, unique } from "drizzle-orm/pg-core";
 
 /**
- * Keywords que el usuario está trackeando (ej: "cottagecore clipart").
- * Cada keyword es única — no queremos duplicados.
+ * Keywords que el sistema está trackeando (ej: "cottagecore clipart").
+ * category agrupa por tipo de producto (ej: "clipart", "svg", "planner").
  */
 export const keywords = pgTable("keywords", {
   id: serial("id").primaryKey(),
   term: text("term").notNull().unique(),
+  category: text("category").notNull().default("general"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 /**
  * Snapshots históricos del volumen de búsqueda de Google Trends.
- * Cada fila = un punto en el tiempo para una keyword específica.
- * La combinación (keywordId, date) debe ser única — no queremos
- * dos valores distintos para el mismo día y la misma keyword.
+ * geo usa códigos ISO 3166-1 alpha-2 (ej: "US", "MX"), o "" para mundial.
+ * La combinación (keywordId, geo, date) debe ser única.
  */
 export const trendSnapshots = pgTable(
   "trend_snapshots",
@@ -23,26 +23,26 @@ export const trendSnapshots = pgTable(
     keywordId: integer("keyword_id")
       .notNull()
       .references(() => keywords.id, { onDelete: "cascade" }),
+    geo: text("geo").notNull().default(""),
     date: text("date").notNull(), // formato YYYY-MM-DD
-    value: integer("value").notNull(), // 0-100, escala de Google Trends
+    value: integer("value").notNull(), // 0-100
     collectedAt: timestamp("collected_at").defaultNow().notNull(),
   },
   (table) => ({
-    uniqueKeywordDate: unique().on(table.keywordId, table.date),
+    uniqueKeywordGeoDate: unique().on(table.keywordId, table.geo, table.date),
   })
 );
 
 /**
- * Búsquedas relacionadas que están en alza para una keyword base.
- * growthValue puede ser un número (ej: "250" = +250%) o el texto
- * "Breakout" cuando Google Trends detecta un salto masivo (+5000%+).
- * Por eso lo guardamos como texto, no como número.
+ * Búsquedas relacionadas en alza, también por país.
+ * growthValue puede ser un número como texto (ej: "250") o "Breakout".
  */
 export const relatedQueries = pgTable("related_queries", {
   id: serial("id").primaryKey(),
   keywordId: integer("keyword_id")
     .notNull()
     .references(() => keywords.id, { onDelete: "cascade" }),
+  geo: text("geo").notNull().default(""),
   query: text("query").notNull(),
   growthValue: text("growth_value").notNull(),
   collectedAt: timestamp("collected_at").defaultNow().notNull(),

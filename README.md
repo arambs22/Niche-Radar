@@ -86,6 +86,23 @@ Born as a personal project for [Kliparama](https://www.etsy.com/shop/Kliparama)
 🚧 Actively under development. See open [issues](https://github.com/arambs22/Niche-Radar/issues)
 and the commit history for current progress.
 
+## Roadmap
+
+Ideas planeadas pero aún no implementadas:
+
+- **Configurable collection scheduling** — let the user choose between
+  running trend collection manually (on-demand) or automatically on a
+  schedule (e.g. daily, every 3 days), configurable per deployment.
+- **Business profile personalization** — allow a user to describe their
+  shop/niche and get tailored keyword suggestions instead of (or in
+  addition to) the default tracked list.
+- **Etsy Open API v3 integration** — cross-reference trending keywords
+  with real Etsy listings to measure market saturation (optional,
+  the app works without it).
+- **Multi-user support** — currently this project is designed to be
+  self-hosted by a single user/instance. A hosted, multi-tenant version
+  is a possible future direction.
+
 ## License
 
 [MIT](./LICENSE) © 2026 Aram Barsegyan
