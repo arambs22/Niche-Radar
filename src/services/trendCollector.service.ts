@@ -1,6 +1,6 @@
 import { db } from "../db/client.js";
 import { keywords, trendSnapshots, relatedQueries } from "../db/schema.js";
-import { eq, and} from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import {
   fetchInterestOverTime,
   fetchRelatedQueries,
@@ -9,8 +9,15 @@ import {
 import type { KeywordConfig } from "../config/keywords.js";
 import { logger } from "../utils/logger.js";
 
-const DELAY_BETWEEN_REQUESTS_MS = 5000; // subimos de 3s a 5s, más conservador
+const BASE_DELAY_MS = 5000;
+const JITTER_MS = 3000; // variación aleatoria para no ser tan predecibles
 const MAX_CONSECUTIVE_FAILURES = 3;
+
+type CollectionStatus = "skipped" | "success" | "failed";
+
+function randomDelay(): number {
+  return BASE_DELAY_MS + Math.floor(Math.random() * JITTER_MS);
+}
 
 async function ensureKeywordExists(
   term: string,
@@ -38,7 +45,7 @@ async function collectForKeywordAndRegion(
   keywordId: number,
   term: string,
   geo: string
-): Promise<boolean> {
+): Promise<CollectionStatus> {
   const today = new Date().toISOString().slice(0, 10);
 
   const alreadyCollectedToday = await db
@@ -54,10 +61,8 @@ async function collectForKeywordAndRegion(
     .limit(1);
 
   if (alreadyCollectedToday.length > 0) {
-    logger.info(
-      `  [${geo || "worldwide"}] ya se recolectó hoy, se omite (ahorra requests)`
-    );
-    return true;
+    logger.info(`  [${geo || "worldwide"}] ⏭ ya recolectado hoy`);
+    return "skipped";
   }
 
   try {
@@ -69,7 +74,7 @@ async function collectForKeywordAndRegion(
         .onConflictDoNothing();
     }
 
-    await sleep(DELAY_BETWEEN_REQUESTS_MS);
+    await sleep(randomDelay());
 
     const rising = await fetchRelatedQueries(term, geo);
     for (const item of rising) {
@@ -84,52 +89,54 @@ async function collectForKeywordAndRegion(
     logger.info(
       `  [${geo || "worldwide"}] ${timeline.length} snapshots, ${rising.length} related queries`
     );
-    return true;
+    return "success";
   } catch (err) {
     logger.error(
       `Failed to collect "${term}" for region "${geo || "worldwide"}"`,
       { error: err instanceof Error ? err.message : String(err) }
     );
-    return false;
+    return "failed";
   }
 }
 
-/**
- * Recolecta tendencias para UN SOLO país (geo) a la vez, secuencialmente,
- * una keyword después de otra. Nunca corre en paralelo.
- *
- * Si detecta varios fallos seguidos (probable rate-limit de Google), se
- * detiene por su cuenta en vez de seguir "atacando" — es mejor parar y
- * reintentar más tarde que quemar el resto de las keywords fallando.
- */
 export async function collectTrendsForAll(
   keywordConfigs: KeywordConfig[],
   geo: string = ""
 ): Promise<void> {
   let consecutiveFailures = 0;
+  let skipped = 0;
+  let succeeded = 0;
+  let failed = 0;
 
   for (const { term, category } of keywordConfigs) {
-    logger.info(
-      `Collecting trends for: "${term}" (${category}) [${geo || "worldwide"}]`
-    );
-
     const keywordId = await ensureKeywordExists(term, category);
-    const success = await collectForKeywordAndRegion(keywordId, term, geo);
+    const status = await collectForKeywordAndRegion(keywordId, term, geo);
 
-    if (success) {
+    if (status === "skipped") {
+      skipped++;
+      continue; // sin esperar — no gastamos request, no hay razón para pausar
+    }
+
+    if (status === "success") {
+      succeeded++;
       consecutiveFailures = 0;
     } else {
+      failed++;
       consecutiveFailures++;
       if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
         logger.error(
-          `${MAX_CONSECUTIVE_FAILURES} fallos seguidos — Google probablemente bloqueó temporalmente esta IP. ` +
-            `Deteniendo la recolección para no empeorarlo. Espera 15-30 minutos (o más) antes de reintentar.`
+          `${MAX_CONSECUTIVE_FAILURES} fallos seguidos — probable bloqueo temporal de Google. ` +
+            `Deteniendo. Espera varias horas (idealmente al día siguiente) antes de reintentar.`
         );
-        return;
+        break;
       }
     }
 
-    // Siempre esperamos antes de la siguiente keyword, haya fallado o no.
-    await sleep(DELAY_BETWEEN_REQUESTS_MS);
+    // Solo esperamos cuando SÍ hicimos una request real (éxito o fallo).
+    await sleep(randomDelay());
   }
+
+  logger.info(
+    `Resumen: ${succeeded} exitosas, ${skipped} omitidas, ${failed} fallidas`
+  );
 }
