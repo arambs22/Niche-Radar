@@ -62,7 +62,7 @@ async function collectForKeywordAndRegion(
     .limit(1);
 
   if (alreadyCollectedToday.length > 0) {
-    logger.info(`  [${geo || "worldwide"}] ⏭ ya recolectado hoy`);
+    logger.info(`  [${geo || "worldwide"}] "${term}" ⏭ ya recolectado hoy`);
     return "skipped";
   }
 
@@ -88,7 +88,7 @@ async function collectForKeywordAndRegion(
     }
 
     logger.info(
-      `  [${geo || "worldwide"}] ${timeline.length} snapshots, ${rising.length} related queries`
+      `  [${geo || "worldwide"}] "${term}" ✓ ${timeline.length} snapshots, ${rising.length} related queries`
     );
     return "success";
   } catch (err) {

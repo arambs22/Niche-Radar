@@ -4,6 +4,7 @@ export interface KeywordConfig {
 }
 
 export const TRACKED_KEYWORDS: KeywordConfig[] = [
+
   // --- Clipart / PNG bundles ---
   { term: "cottagecore clipart", category: "clipart" },
   { term: "kawaii clipart", category: "clipart" },
