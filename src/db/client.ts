@@ -8,6 +8,7 @@ export const pool = new Pool({
 
 export const db = drizzle(pool);
 
+/** Checks whether the database connection is currently reachable. */
 export async function checkDatabaseConnection(): Promise<boolean> {
   try {
     await pool.query("SELECT 1");

@@ -6,6 +6,11 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   DATABASE_URL: z.string().url(),
 
+  // JWT_SECRET must be at least 32 characters; a short or guessable
+  // value allows session forgery for any user.
+  JWT_SECRET: z.string().min(32, "JWT_SECRET debe tener al menos 32 caracteres"),
+  JWT_EXPIRES_IN_SECONDS: z.coerce.number().int().positive().default(60 * 60 * 24 * 7), // 7 days
+
   // Etsy integration is optional: if either is missing, Etsy-backed
   // features are disabled rather than the app failing to start.
   ETSY_API_KEY: z.string().optional(),
@@ -14,16 +19,13 @@ const envSchema = z.object({
 
 function loadEnv() {
   const parsed = envSchema.safeParse(process.env);
-
   if (!parsed.success) {
     console.error("Invalid environment configuration:");
     console.error(parsed.error.flatten().fieldErrors);
     process.exit(1);
   }
-
   return parsed.data;
 }
 
 export const env = loadEnv();
-
 export const isEtsyEnabled = Boolean(env.ETSY_API_KEY && env.ETSY_API_SECRET);

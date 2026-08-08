@@ -12,6 +12,7 @@ export interface RelatedQueryResult {
 
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 
+/** Fetches the interest-over-time series for a keyword over the last 90 days. */
 export async function fetchInterestOverTime(
   keyword: string,
   geo: string = ""
@@ -31,6 +32,7 @@ export async function fetchInterestOverTime(
   }));
 }
 
+/** Fetches rising related queries for a keyword over the last 90 days. */
 export async function fetchRelatedQueries(
   keyword: string,
   geo: string = ""
@@ -50,6 +52,7 @@ export async function fetchRelatedQueries(
   }));
 }
 
+/** Resolves after the given number of milliseconds. */
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

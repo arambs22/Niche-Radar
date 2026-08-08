@@ -1,21 +1,32 @@
 import { pgTable, serial, text, integer, timestamp, unique } from "drizzle-orm/pg-core";
 
-/**
- * Keywords que el sistema está trackeando (ej: "cottagecore clipart").
- * category agrupa por tipo de producto (ej: "clipart", "svg", "planner").
- */
-export const keywords = pgTable("keywords", {
+/** Registered users. Passwords are stored as bcrypt hashes, never in plain text. */
+export const users = pgTable("users", {
   id: serial("id").primaryKey(),
-  term: text("term").notNull().unique(),
-  category: text("category").notNull().default("general"),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-/**
- * Snapshots históricos del volumen de búsqueda de Google Trends.
- * geo usa códigos ISO 3166-1 alpha-2 (ej: "US", "MX"), o "" para mundial.
- * La combinación (keywordId, geo, date) debe ser única.
- */
+/** Keywords tracked by a specific user; each keyword belongs to exactly one user. */
+export const keywords = pgTable(
+  "keywords",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    term: text("term").notNull(),
+    category: text("category").notNull().default("general"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    // Uniqueness is scoped per user: different users may track the
+    // same term, but a single user cannot track it twice.
+    uniqueUserTerm: unique().on(table.userId, table.term),
+  })
+);
+
 export const trendSnapshots = pgTable(
   "trend_snapshots",
   {
@@ -24,8 +35,8 @@ export const trendSnapshots = pgTable(
       .notNull()
       .references(() => keywords.id, { onDelete: "cascade" }),
     geo: text("geo").notNull().default(""),
-    date: text("date").notNull(), // formato YYYY-MM-DD
-    value: integer("value").notNull(), // 0-100
+    date: text("date").notNull(),
+    value: integer("value").notNull(),
     collectedAt: timestamp("collected_at").defaultNow().notNull(),
   },
   (table) => ({
@@ -33,10 +44,6 @@ export const trendSnapshots = pgTable(
   })
 );
 
-/**
- * Búsquedas relacionadas en alza, también por país.
- * growthValue puede ser un número como texto (ej: "250") o "Breakout".
- */
 export const relatedQueries = pgTable("related_queries", {
   id: serial("id").primaryKey(),
   keywordId: integer("keyword_id")

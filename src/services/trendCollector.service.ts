@@ -6,12 +6,11 @@ import {
   fetchRelatedQueries,
   sleep,
 } from "./googleTrends.service.js";
-import type { KeywordConfig } from "../config/keywords.js";
-import { logger } from "../utils/logger.js";
 import { getTodayLocal } from "../utils/date.js";
+import { logger } from "../utils/logger.js";
 
-const BASE_DELAY_MS = 5000;
-const JITTER_MS = 3000; // variación aleatoria para no ser tan predecibles
+const BASE_DELAY_MS = 8000;
+const JITTER_MS = 3000;
 const MAX_CONSECUTIVE_FAILURES = 3;
 
 type CollectionStatus = "skipped" | "success" | "failed";
@@ -20,29 +19,12 @@ function randomDelay(): number {
   return BASE_DELAY_MS + Math.floor(Math.random() * JITTER_MS);
 }
 
-async function ensureKeywordExists(
-  term: string,
-  category: string
-): Promise<number> {
-  const existing = await db
-    .select()
-    .from(keywords)
-    .where(eq(keywords.term, term))
-    .limit(1);
-
-  if (existing.length > 0) {
-    return existing[0]!.id;
-  }
-
-  const inserted = await db
-    .insert(keywords)
-    .values({ term, category })
-    .returning({ id: keywords.id });
-
-  return inserted[0]!.id;
+/** Returns every tracked keyword across all users. */
+async function getAllKeywords() {
+  return db.select().from(keywords);
 }
 
-async function collectForKeywordAndRegion(
+async function collectForKeyword(
   keywordId: number,
   term: string,
   geo: string
@@ -62,7 +44,7 @@ async function collectForKeywordAndRegion(
     .limit(1);
 
   if (alreadyCollectedToday.length > 0) {
-    logger.info(`  [${geo || "worldwide"}] "${term}" ⏭ ya recolectado hoy`);
+    logger.info(`  [${geo || "worldwide"}] "${term}" skipped (already collected today)`);
     return "skipped";
   }
 
@@ -88,35 +70,37 @@ async function collectForKeywordAndRegion(
     }
 
     logger.info(
-      `  [${geo || "worldwide"}] "${term}" ✓ ${timeline.length} snapshots, ${rising.length} related queries`
+      `  [${geo || "worldwide"}] "${term}" ok (${timeline.length} snapshots, ${rising.length} related queries)`
     );
     return "success";
   } catch (err) {
-    logger.error(
-      `Failed to collect "${term}" for region "${geo || "worldwide"}"`,
-      { error: err instanceof Error ? err.message : String(err) }
-    );
+    logger.error(`Failed to collect "${term}" for region "${geo || "worldwide"}"`, {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return "failed";
   }
 }
 
-export async function collectTrendsForAll(
-  keywordConfigs: KeywordConfig[],
-  geo: string = ""
-): Promise<void> {
+/**
+ * Collects trend data for every tracked keyword across all users, for a
+ * single region. Runs sequentially and stops early after repeated
+ * consecutive failures (likely a temporary upstream rate limit).
+ */
+export async function collectTrendsForAllUsers(geo: string = ""): Promise<void> {
+  const allKeywords = await getAllKeywords();
+
   let consecutiveFailures = 0;
   let skipped = 0;
   let succeeded = 0;
   let failed = 0;
 
-  for (const { term, category } of keywordConfigs) {
-    const keywordId = await ensureKeywordExists(term, category);
-    const status = await collectForKeywordAndRegion(keywordId, term, geo);
+  for (const { id, term } of allKeywords) {
+    const status = await collectForKeyword(id, term, geo);
 
     if (status === "skipped") {
       skipped++;
       await sleep(700);
-      continue; // sin esperar — no gastamos request, no hay razón para pausar
+      continue;
     }
 
     if (status === "success") {
@@ -127,18 +111,14 @@ export async function collectTrendsForAll(
       consecutiveFailures++;
       if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
         logger.error(
-          `${MAX_CONSECUTIVE_FAILURES} fallos seguidos — probable bloqueo temporal de Google. ` +
-            `Deteniendo. Espera varias horas (idealmente al día siguiente) antes de reintentar.`
+          `Stopped after ${MAX_CONSECUTIVE_FAILURES} consecutive failures (likely rate-limited).`
         );
         break;
       }
     }
 
-    // Solo esperamos cuando SÍ hicimos una request real (éxito o fallo).
     await sleep(randomDelay());
   }
 
-  logger.info(
-    `Resumen: ${succeeded} exitosas, ${skipped} omitidas, ${failed} fallidas`
-  );
+  logger.info(`Summary: ${succeeded} succeeded, ${skipped} skipped, ${failed} failed`);
 }

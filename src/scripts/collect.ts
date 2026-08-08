@@ -1,19 +1,16 @@
-import { collectTrendsForAll } from "../services/trendCollector.service.js";
-import { TRACKED_KEYWORDS } from "../config/keywords.js";
+import { collectTrendsForAllUsers } from "../services/trendCollector.service.js";
 
-// Uso: npm run collect -- --geo=US
-// Sin --geo, por defecto es mundial ("").
 const geoArg = process.argv.find((arg) => arg.startsWith("--geo="));
 const geo = geoArg ? geoArg.split("=")[1]! : "";
 
-console.log(`Iniciando recolección para geo="${geo || "worldwide"}"...`);
+console.log(`Starting collection for geo="${geo || "worldwide"}"...`);
 
-collectTrendsForAll(TRACKED_KEYWORDS, geo)
+collectTrendsForAllUsers(geo)
   .then(() => {
-    console.log(`Recolección terminada para geo="${geo || "worldwide"}".`);
+    console.log(`Collection finished for geo="${geo || "worldwide"}".`);
     process.exit(0);
   })
   .catch((err) => {
-    console.error("La recolección falló:", err);
+    console.error("Collection failed:", err);
     process.exit(1);
   });

@@ -1,5 +1,5 @@
 {
-  "id": "7a1106da-b46b-46e0-a6f5-a88b0688740a",
+  "id": "7289276b-e6ab-46a4-b0f0-dc3004b28cdd",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -14,11 +14,24 @@
           "primaryKey": true,
           "notNull": true
         },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "term": {
           "name": "term",
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'general'"
         },
         "created_at": {
           "name": "created_at",
@@ -29,13 +42,28 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "keywords_user_id_users_id_fk": {
+          "name": "keywords_user_id_users_id_fk",
+          "tableFrom": "keywords",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "keywords_term_unique": {
-          "name": "keywords_term_unique",
+        "keywords_user_id_term_unique": {
+          "name": "keywords_user_id_term_unique",
           "nullsNotDistinct": false,
           "columns": [
+            "user_id",
             "term"
           ]
         }
@@ -59,6 +87,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "geo": {
+          "name": "geo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
         },
         "query": {
           "name": "query",
@@ -118,6 +153,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "geo": {
+          "name": "geo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
         "date": {
           "name": "date",
           "type": "text",
@@ -156,12 +198,59 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "trend_snapshots_keyword_id_date_unique": {
-          "name": "trend_snapshots_keyword_id_date_unique",
+        "trend_snapshots_keyword_id_geo_date_unique": {
+          "name": "trend_snapshots_keyword_id_geo_date_unique",
           "nullsNotDistinct": false,
           "columns": [
             "keyword_id",
+            "geo",
             "date"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
           ]
         }
       },

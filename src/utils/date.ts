@@ -1,10 +1,9 @@
 /**
- * Regresa la fecha de HOY en formato YYYY-MM-DD, usando la zona horaria
- * LOCAL de la máquina donde corre el proceso (no UTC).
+ * Returns today's date as YYYY-MM-DD in the local timezone of the
+ * running process (not UTC).
  *
- * Usamos el locale "en-CA" como truco porque casualmente formatea fechas
- * como YYYY-MM-DD por defecto, que es justo el formato que ya usamos en
- * toda la base de datos.
+ * Uses the "en-CA" locale, which formats dates as YYYY-MM-DD by
+ * default, matching the format used throughout the database.
  */
 export function getTodayLocal(): string {
   return new Date().toLocaleDateString("en-CA");
