@@ -1,22 +1,9 @@
 import { Router } from "express";
 import { db } from "../db/client.js";
 import { keywords, trendSnapshots, relatedQueries } from "../db/schema.js";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 
 export const trendsRouter = Router();
-
-/**
- * GET /api/keywords
- * Lists all tracked keywords with their category.
- */
-trendsRouter.get("/keywords", async (_req, res, next) => {
-  try {
-    const result = await db.select().from(keywords).orderBy(keywords.category, keywords.term);
-    res.json(result);
-  } catch (err) {
-    next(err);
-  }
-});
 
 /**
  * GET /api/trends?geo=US

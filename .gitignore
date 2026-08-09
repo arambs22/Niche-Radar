@@ -31,3 +31,4 @@ postgres-data/
 coverage/
 
 .claude/
+CLAUDE.md

@@ -2,6 +2,8 @@ import express, { type NextFunction, type Request, type Response } from "express
 import cookieParser from "cookie-parser";
 import { healthRouter } from "./routes/health.route.js";
 import { authRouter } from "./routes/auth.route.js";
+import { keywordsRouter } from "./routes/keywords.route.js";
+import { trendsRouter } from "./routes/trends.route.js";
 import { AppError } from "./utils/errors.js";
 import { logger } from "./utils/logger.js";
 
@@ -13,6 +15,8 @@ export function createApp() {
 
   app.use(healthRouter);
   app.use("/api/auth", authRouter);
+  app.use("/api/keywords", keywordsRouter);
+  app.use("/api", trendsRouter);
 
   // 404 handler, reached when no route above matched.
   app.use((req: Request, res: Response) => {
