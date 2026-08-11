@@ -5,6 +5,8 @@ import { KeywordList } from "../components/KeywordList";
 import { RegionTabs } from "../components/RegionTabs";
 import { TrendChart } from "../components/TrendChart";
 import { RelatedQueriesList } from "../components/RelatedQueriesList";
+import { HistorySidebar } from "../components/HistorySidebar";
+import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
 import type { Keyword, KeywordTrend, KeywordRelated } from "../lib/types";
 
@@ -19,8 +21,9 @@ function loadRegionList(key: string, fallback: string[]): string[] {
   }
 }
 
-/** Protected landing page: keyword management plus trend chart and related queries, compared across up to 3 active regions. */
+/** Protected landing page, filling the viewport with no page-level scroll: keyword management plus trend chart and related queries, compared across up to 3 active regions. */
 export function DashboardPage() {
+  const { user } = useAuth();
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [addedRegions, setAddedRegions] = useState<string[]>(() => loadRegionList("nicheradar_regions_added", []));
@@ -111,9 +114,9 @@ export function DashboardPage() {
   }));
 
   return (
-    <div className="min-h-screen bg-bg">
+    <div className="flex min-h-screen flex-col bg-bg">
       <Navbar />
-      <main className="mx-auto max-w-5xl space-y-4 px-6 py-8">
+      <main className="flex flex-1 flex-col gap-4 px-6 py-4">
         <RegionTabs
           added={addedRegions}
           active={activeRegions}
@@ -121,42 +124,51 @@ export function DashboardPage() {
           onRemove={handleRemoveRegion}
           onAdd={handleAddRegion}
         />
-        <div className="grid gap-6 md:grid-cols-[minmax(0,320px)_1fr]">
-          <div className="space-y-4">
+        <div className="grid min-h-[480px] flex-1 gap-6 md:grid-cols-[320px_1fr]">
+          <div className="flex min-h-0 flex-col gap-4">
             <KeywordForm onCreated={refetchKeywords} />
-            {loadingKeywords ? (
-              <p className="text-sm text-text-muted">Cargando keywords...</p>
-            ) : (
-              <KeywordList
-                keywords={keywords}
-                onDeleted={refetchKeywords}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-              />
-            )}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {loadingKeywords ? (
+                <p className="text-sm text-text-muted">Cargando keywords...</p>
+              ) : (
+                <KeywordList
+                  keywords={keywords}
+                  onDeleted={refetchKeywords}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                />
+              )}
+            </div>
           </div>
-          <div className="space-y-6 rounded-lg border border-border bg-surface p-6 shadow-sm">
+          <div className="min-h-0 rounded-lg border border-border bg-surface p-6 shadow-sm">
             {selectedId === null ? (
-              <p className="text-sm text-text-muted">Agrega o selecciona una keyword para ver su tendencia.</p>
+              <p className="flex h-full items-center justify-center text-center text-sm text-text-muted">
+                Agrega o selecciona una keyword para ver su tendencia.
+              </p>
             ) : activeRegions.length === 0 ? (
-              <p className="text-sm text-text-muted">Activa al menos una región para ver su tendencia.</p>
+              <p className="flex h-full items-center justify-center text-center text-sm text-text-muted">
+                Activa al menos una región para ver su tendencia.
+              </p>
             ) : loadingTrends ? (
-              <p className="text-sm text-text-muted">Cargando datos de tendencia...</p>
+              <p className="flex h-full items-center justify-center text-center text-sm text-text-muted">
+                Cargando datos de tendencia...
+              </p>
             ) : (
-              <>
-                <div>
-                  <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">Tendencia</h2>
+              <div className="grid h-full grid-rows-[auto_1fr_auto_auto] gap-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">Tendencia</h2>
+                <div className="min-h-[260px]">
                   <TrendChart series={chartSeries} />
                 </div>
-                <div>
-                  <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">Related queries en alza</h2>
-                  <RelatedQueriesList columns={relatedColumns} />
-                </div>
-              </>
+                <h2 className="mt-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
+                  Related queries en alza
+                </h2>
+                <RelatedQueriesList columns={relatedColumns} />
+              </div>
             )}
           </div>
         </div>
       </main>
+      {user && <HistorySidebar initialRetentionDays={user.historyRetentionDays} />}
     </div>
   );
 }

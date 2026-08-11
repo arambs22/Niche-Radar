@@ -17,6 +17,13 @@ function seriesKey(region: string): string {
   return region === "" ? "worldwide" : region;
 }
 
+function formatTick(dateStr: string): string {
+  const parts = dateStr.split("-");
+  if (parts.length !== 3) return dateStr;
+  const [, month, day] = parts;
+  return `${day}/${month}`;
+}
+
 function mergeSeries(series: RegionTimeline[]): Record<string, number | string>[] {
   const byDate = new Map<string, Record<string, number | string>>();
   for (const { region, timeline } of series) {
@@ -29,7 +36,7 @@ function mergeSeries(series: RegionTimeline[]): Record<string, number | string>[
   return Array.from(byDate.values()).sort((a, b) => String(a.date).localeCompare(String(b.date)));
 }
 
-/** Line chart of one keyword's Google Trends interest-over-time, one line per active region. */
+/** Line chart of one keyword's Google Trends interest-over-time, one line per active region, filling its container. */
 export function TrendChart({ series }: TrendChartProps) {
   const hasData = series.some((s) => s.timeline.length > 0);
   if (!hasData) {
@@ -39,12 +46,13 @@ export function TrendChart({ series }: TrendChartProps) {
   const data = mergeSeries(series);
 
   return (
-    <ResponsiveContainer width="100%" height={240}>
+    <ResponsiveContainer width="100%" height="100%">
       <LineChart data={data}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-        <XAxis dataKey="date" tick={TICK_STYLE} />
+        <XAxis dataKey="date" tick={TICK_STYLE} tickFormatter={formatTick} />
         <YAxis tick={TICK_STYLE} />
         <Tooltip
+          labelFormatter={(label) => formatTick(String(label))}
           contentStyle={{
             backgroundColor: "var(--color-surface)",
             borderColor: "var(--color-border)",

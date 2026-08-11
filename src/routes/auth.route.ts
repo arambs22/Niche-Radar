@@ -88,7 +88,7 @@ authRouter.post("/logout", (_req, res) => {
   res.status(204).send();
 });
 
-/** GET /me — returns the currently authenticated user. */
+/** GET /me — returns the currently authenticated user, including their history retention preference. */
 authRouter.get("/me", async (req, res) => {
   const token = req.cookies?.[COOKIE_NAME];
   if (!token) {
@@ -98,7 +98,7 @@ authRouter.get("/me", async (req, res) => {
   try {
     const payload = verifyToken(token);
     const [user] = await db
-      .select({ id: users.id, email: users.email })
+      .select({ id: users.id, email: users.email, historyRetentionDays: users.historyRetentionDays })
       .from(users)
       .where(eq(users.id, payload.userId))
       .limit(1);
@@ -109,5 +109,41 @@ authRouter.get("/me", async (req, res) => {
     res.json(user);
   } catch {
     res.status(401).json({ error: "Sesión inválida o expirada" });
+  }
+});
+
+const ALLOWED_RETENTION_DAYS = [15, 30, 60, 90];
+
+const updateMeSchema = z.object({
+  historyRetentionDays: z
+    .number()
+    .int()
+    .refine((v) => ALLOWED_RETENTION_DAYS.includes(v), { message: "Valor de retención no válido" }),
+});
+
+/** PATCH /me — updates the authenticated user's account settings (currently just history retention). */
+authRouter.patch("/me", async (req, res, next) => {
+  const token = req.cookies?.[COOKIE_NAME];
+  if (!token) {
+    res.status(401).json({ error: "No autenticado" });
+    return;
+  }
+  try {
+    const payload = verifyToken(token);
+    const parsed = updateMeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+      return;
+    }
+
+    const [user] = await db
+      .update(users)
+      .set({ historyRetentionDays: parsed.data.historyRetentionDays })
+      .where(eq(users.id, payload.userId))
+      .returning({ id: users.id, email: users.email, historyRetentionDays: users.historyRetentionDays });
+
+    res.json(user);
+  } catch (err) {
+    next(err);
   }
 });

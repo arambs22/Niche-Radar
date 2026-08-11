@@ -5,6 +5,7 @@ export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  historyRetentionDays: integer("history_retention_days").notNull().default(15),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -19,10 +20,14 @@ export const keywords = pgTable(
     term: text("term").notNull(),
     category: text("category").notNull().default("general"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    removedAt: timestamp("removed_at"),
   },
   (table) => ({
     // Uniqueness is scoped per user: different users may track the
-    // same term, but a single user cannot track it twice.
+    // same term, but a single user cannot track it twice. This still
+    // matches on archived rows too — POST /api/keywords handles
+    // re-adding an archived term by restoring it instead of inserting
+    // a duplicate, so this constraint never blocks that.
     uniqueUserTerm: unique().on(table.userId, table.term),
   })
 );

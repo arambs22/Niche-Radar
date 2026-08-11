@@ -1,6 +1,7 @@
 export interface User {
   id: number;
   email: string;
+  historyRetentionDays: number;
 }
 
 export interface Keyword {
@@ -9,6 +10,7 @@ export interface Keyword {
   term: string;
   category: string;
   createdAt: string;
+  removedAt: string | null;
 }
 
 export interface TrendPoint {
@@ -33,4 +35,27 @@ export interface KeywordRelated {
   term: string;
   category: string;
   rising: RelatedQuery[];
+}
+
+export interface KeywordHistoryEntry {
+  id: number;
+  term: string;
+  category: string;
+  createdAt: string;
+  removedAt: string | null;
+  regions: string[];
+}
+
+export interface KeywordHistoryTrends {
+  id: number;
+  term: string;
+  category: string;
+  series: { region: string; timeline: TrendPoint[] }[];
+}
+
+export interface KeywordHistoryRelated {
+  id: number;
+  term: string;
+  category: string;
+  columns: { region: string; rising: RelatedQuery[] }[];
 }

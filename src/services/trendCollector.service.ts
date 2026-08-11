@@ -1,6 +1,6 @@
 import { db } from "../db/client.js";
 import { keywords, trendSnapshots, relatedQueries } from "../db/schema.js";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import {
   fetchInterestOverTime,
   fetchRelatedQueries,
@@ -19,9 +19,9 @@ function randomDelay(): number {
   return BASE_DELAY_MS + Math.floor(Math.random() * JITTER_MS);
 }
 
-/** Returns every tracked keyword across all users. */
+/** Returns every actively tracked (non-archived) keyword across all users. */
 async function getAllKeywords() {
-  return db.select().from(keywords);
+  return db.select().from(keywords).where(isNull(keywords.removedAt));
 }
 
 async function collectForKeyword(

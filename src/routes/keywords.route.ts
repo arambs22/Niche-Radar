@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { keywords } from "../db/schema.js";
+import { keywords, trendSnapshots, relatedQueries, users } from "../db/schema.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 
 export const keywordsRouter = Router();
@@ -14,7 +14,7 @@ const createKeywordSchema = z.object({
   category: z.string().trim().min(1).optional(),
 });
 
-/** POST / — creates a keyword owned by the authenticated user. */
+/** POST / — creates a keyword owned by the authenticated user, or restores it if it was previously archived under the same term. */
 keywordsRouter.post("/", async (req, res, next) => {
   try {
     const parsed = createKeywordSchema.safeParse(req.body);
@@ -23,6 +23,27 @@ keywordsRouter.post("/", async (req, res, next) => {
       return;
     }
     const { term, category } = parsed.data;
+
+    const [existing] = await db
+      .select()
+      .from(keywords)
+      .where(and(eq(keywords.userId, req.userId!), eq(keywords.term, term)))
+      .limit(1);
+
+    if (existing && existing.removedAt === null) {
+      res.status(409).json({ error: "Ya estás trackeando esa keyword" });
+      return;
+    }
+
+    if (existing) {
+      const [restored] = await db
+        .update(keywords)
+        .set({ removedAt: null, ...(category ? { category } : {}) })
+        .where(eq(keywords.id, existing.id))
+        .returning();
+      res.status(200).json(restored);
+      return;
+    }
 
     const [keyword] = await db
       .insert(keywords)
@@ -42,13 +63,31 @@ keywordsRouter.post("/", async (req, res, next) => {
   }
 });
 
-/** GET / — lists the authenticated user's keywords. */
+/** GET / — lists the authenticated user's active keywords, or active+archived (with per-region coverage) when ?includeRemoved=true. */
 keywordsRouter.get("/", async (req, res, next) => {
   try {
+    if (req.query.includeRemoved === "true") {
+      const retentionDays = await getRetentionDays(req.userId!);
+      await purgeExpired(req.userId!, retentionDays);
+
+      const all = await db
+        .select()
+        .from(keywords)
+        .where(eq(keywords.userId, req.userId!))
+        .orderBy(keywords.createdAt);
+
+      const withRegions = await Promise.all(
+        all.map(async (kw) => ({ ...kw, regions: await getKeywordRegions(kw.id) }))
+      );
+
+      res.json(withRegions);
+      return;
+    }
+
     const result = await db
       .select()
       .from(keywords)
-      .where(eq(keywords.userId, req.userId!))
+      .where(and(eq(keywords.userId, req.userId!), isNull(keywords.removedAt)))
       .orderBy(keywords.category, keywords.term);
     res.json(result);
   } catch (err) {
@@ -56,7 +95,7 @@ keywordsRouter.get("/", async (req, res, next) => {
   }
 });
 
-/** DELETE /:id — deletes a keyword owned by the authenticated user. */
+/** DELETE /:id — archives a keyword owned by the authenticated user (soft delete; its data is kept until it expires from history). */
 keywordsRouter.delete("/:id", async (req, res, next) => {
   try {
     const id = Number(req.params.id);
@@ -65,12 +104,13 @@ keywordsRouter.delete("/:id", async (req, res, next) => {
       return;
     }
 
-    const deleted = await db
-      .delete(keywords)
-      .where(and(eq(keywords.id, id), eq(keywords.userId, req.userId!)))
+    const archived = await db
+      .update(keywords)
+      .set({ removedAt: new Date() })
+      .where(and(eq(keywords.id, id), eq(keywords.userId, req.userId!), isNull(keywords.removedAt)))
       .returning({ id: keywords.id });
 
-    if (deleted.length === 0) {
+    if (archived.length === 0) {
       res.status(404).json({ error: "Keyword no encontrada" });
       return;
     }
@@ -80,3 +120,145 @@ keywordsRouter.delete("/:id", async (req, res, next) => {
     next(err);
   }
 });
+
+/** PATCH /:id/restore — un-archives a keyword owned by the authenticated user. */
+keywordsRouter.patch("/:id/restore", async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
+
+    const [restored] = await db
+      .update(keywords)
+      .set({ removedAt: null })
+      .where(and(eq(keywords.id, id), eq(keywords.userId, req.userId!), isNotNull(keywords.removedAt)))
+      .returning();
+
+    if (!restored) {
+      res.status(404).json({ error: "Keyword archivada no encontrada" });
+      return;
+    }
+
+    res.json(restored);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** GET /:id/trends — full trend history for one keyword, across every region it has data for, regardless of archived status. */
+keywordsRouter.get("/:id/trends", async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
+
+    const [keyword] = await db
+      .select()
+      .from(keywords)
+      .where(and(eq(keywords.id, id), eq(keywords.userId, req.userId!)))
+      .limit(1);
+
+    if (!keyword) {
+      res.status(404).json({ error: "Keyword no encontrada" });
+      return;
+    }
+
+    const snapshots = await db
+      .select()
+      .from(trendSnapshots)
+      .where(eq(trendSnapshots.keywordId, id))
+      .orderBy(trendSnapshots.geo, trendSnapshots.date);
+
+    const byRegion = new Map<string, { date: string; value: number }[]>();
+    for (const s of snapshots) {
+      const list = byRegion.get(s.geo) ?? [];
+      list.push({ date: s.date, value: s.value });
+      byRegion.set(s.geo, list);
+    }
+
+    res.json({
+      id: keyword.id,
+      term: keyword.term,
+      category: keyword.category,
+      series: Array.from(byRegion.entries()).map(([region, timeline]) => ({ region, timeline })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** GET /:id/related — full related-queries history for one keyword, across every region, regardless of archived status. */
+keywordsRouter.get("/:id/related", async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
+
+    const [keyword] = await db
+      .select()
+      .from(keywords)
+      .where(and(eq(keywords.id, id), eq(keywords.userId, req.userId!)))
+      .limit(1);
+
+    if (!keyword) {
+      res.status(404).json({ error: "Keyword no encontrada" });
+      return;
+    }
+
+    const related = await db
+      .select()
+      .from(relatedQueries)
+      .where(eq(relatedQueries.keywordId, id))
+      .orderBy(relatedQueries.geo, relatedQueries.collectedAt);
+
+    const byRegion = new Map<string, { query: string; growthValue: string }[]>();
+    for (const r of related) {
+      const list = byRegion.get(r.geo) ?? [];
+      list.push({ query: r.query, growthValue: r.growthValue });
+      byRegion.set(r.geo, list);
+    }
+
+    res.json({
+      id: keyword.id,
+      term: keyword.term,
+      category: keyword.category,
+      columns: Array.from(byRegion.entries()).map(([region, rising]) => ({ region, rising })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+async function getRetentionDays(userId: number): Promise<number> {
+  const [user] = await db
+    .select({ historyRetentionDays: users.historyRetentionDays })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return user?.historyRetentionDays ?? 15;
+}
+
+async function purgeExpired(userId: number, retentionDays: number): Promise<void> {
+  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+  await db
+    .delete(keywords)
+    .where(and(eq(keywords.userId, userId), isNotNull(keywords.removedAt), lt(keywords.removedAt, cutoff)));
+}
+
+async function getKeywordRegions(keywordId: number): Promise<string[]> {
+  const snapshotGeos = await db
+    .selectDistinct({ geo: trendSnapshots.geo })
+    .from(trendSnapshots)
+    .where(eq(trendSnapshots.keywordId, keywordId));
+  const relatedGeos = await db
+    .selectDistinct({ geo: relatedQueries.geo })
+    .from(relatedQueries)
+    .where(eq(relatedQueries.keywordId, keywordId));
+  return Array.from(new Set([...snapshotGeos.map((s) => s.geo), ...relatedGeos.map((r) => r.geo)]));
+}

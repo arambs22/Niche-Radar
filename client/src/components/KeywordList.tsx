@@ -40,7 +40,7 @@ export function KeywordList({ keywords, onDeleted, selectedId, onSelect }: Keywo
             }}
             className="text-xs text-primary hover:underline"
           >
-            Borrar
+            Archivar
           </button>
         </li>
       ))}

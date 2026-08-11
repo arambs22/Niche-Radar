@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-  --color-bg: #f7e8d4;
-  --color-surface: #fffbf3;
+  --color-bg: #ece0c7;
+  --color-surface: #f7eada;
   --color-text: #3a2a1e;
   --color-text-muted: #7a6552;
   --color-primary: #c1502e;
@@ -32,11 +32,23 @@
   body {
     @apply bg-bg text-text font-sans;
   }
-  .dashboard::-webkit-scrollbar {
-    display: none;
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) var(--color-bg);
   }
-  .dashboard {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-bg);
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-border);
+    border-radius: 9999px;
+    border: 2px solid var(--color-bg);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-primary);
   }
 }

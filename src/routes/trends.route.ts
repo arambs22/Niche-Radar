@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../db/client.js";
 import { keywords, trendSnapshots, relatedQueries } from "../db/schema.js";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, isNull, desc } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.middleware.js";
 
 export const trendsRouter = Router();
@@ -10,8 +10,9 @@ trendsRouter.use(requireAuth);
 
 /**
  * GET /api/trends?geo=US
- * Returns the snapshot history for the authenticated user's keywords for
- * a given country (or worldwide if geo is omitted), grouped by keyword.
+ * Returns the snapshot history for the authenticated user's active
+ * (non-archived) keywords for a given country (or worldwide if geo is
+ * omitted), grouped by keyword.
  */
 trendsRouter.get("/trends", async (req, res, next) => {
   try {
@@ -20,7 +21,7 @@ trendsRouter.get("/trends", async (req, res, next) => {
     const allKeywords = await db
       .select()
       .from(keywords)
-      .where(eq(keywords.userId, req.userId!));
+      .where(and(eq(keywords.userId, req.userId!), isNull(keywords.removedAt)));
     const allSnapshots = await db
       .select()
       .from(trendSnapshots)
@@ -45,8 +46,8 @@ trendsRouter.get("/trends", async (req, res, next) => {
 /**
  * GET /api/related?geo=US
  * Returns rising related queries grouped by keyword, for the
- * authenticated user's keywords in a given country (or worldwide if geo
- * is omitted).
+ * authenticated user's active (non-archived) keywords in a given
+ * country (or worldwide if geo is omitted).
  */
 trendsRouter.get("/related", async (req, res, next) => {
   try {
@@ -55,7 +56,7 @@ trendsRouter.get("/related", async (req, res, next) => {
     const allKeywords = await db
       .select()
       .from(keywords)
-      .where(eq(keywords.userId, req.userId!));
+      .where(and(eq(keywords.userId, req.userId!), isNull(keywords.removedAt)));
     const allRelated = await db
       .select()
       .from(relatedQueries)
