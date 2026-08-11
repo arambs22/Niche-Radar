@@ -57,14 +57,14 @@ export function DashboardPage() {
   const selectedRelated = related.find((r) => r.id === selectedId);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-bg">
       <Navbar />
       <main className="mx-auto grid max-w-5xl gap-6 px-6 py-8 md:grid-cols-[minmax(0,320px)_1fr]">
         <div className="space-y-4">
           <KeywordForm onCreated={refetchKeywords} />
           <GeoInput value={geo} onChange={setGeo} />
           {loadingKeywords ? (
-            <p className="text-sm text-slate-500">Cargando keywords...</p>
+            <p className="text-sm text-text-muted">Cargando keywords...</p>
           ) : (
             <KeywordList
               keywords={keywords}
@@ -74,19 +74,19 @@ export function DashboardPage() {
             />
           )}
         </div>
-        <div className="space-y-6 rounded-lg bg-white p-6 shadow">
+        <div className="space-y-6 rounded-lg border border-border bg-surface p-6 shadow-sm">
           {selectedId === null ? (
-            <p className="text-sm text-slate-500">Agrega o selecciona una keyword para ver su tendencia.</p>
+            <p className="text-sm text-text-muted">Agrega o selecciona una keyword para ver su tendencia.</p>
           ) : loadingTrends ? (
-            <p className="text-sm text-slate-500">Cargando datos de tendencia...</p>
+            <p className="text-sm text-text-muted">Cargando datos de tendencia...</p>
           ) : (
             <>
               <div>
-                <h2 className="mb-2 text-sm font-semibold text-slate-800">Tendencia</h2>
+                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">Tendencia</h2>
                 <TrendChart timeline={selectedTrend?.timeline ?? []} />
               </div>
               <div>
-                <h2 className="mb-2 text-sm font-semibold text-slate-800">Related queries en alza</h2>
+                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">Related queries en alza</h2>
                 <RelatedQueriesList rising={selectedRelated?.rising ?? []} />
               </div>
             </>
