@@ -16,29 +16,29 @@ export function KeywordList({ keywords, onDeleted, selectedId, onSelect }: Keywo
   }
 
   if (keywords.length === 0) {
-    return <p className="text-sm text-slate-500">Todavía no trackeas ninguna keyword.</p>;
+    return <p className="text-sm text-text-muted">Todavía no trackeas ninguna keyword.</p>;
   }
 
   return (
-    <ul className="divide-y divide-slate-200 rounded-lg bg-white shadow">
+    <ul className="divide-y divide-border rounded-lg border border-border bg-surface shadow-sm">
       {keywords.map((keyword) => (
         <li
           key={keyword.id}
           onClick={() => onSelect(keyword.id)}
           className={`flex cursor-pointer items-center justify-between px-4 py-3 ${
-            selectedId === keyword.id ? "bg-slate-50" : ""
+            selectedId === keyword.id ? "bg-bg" : ""
           }`}
         >
           <div>
-            <p className="text-sm font-medium text-slate-800">{keyword.term}</p>
-            <p className="text-xs text-slate-500">{keyword.category}</p>
+            <p className="text-sm font-medium text-text">{keyword.term}</p>
+            <p className="text-xs text-text-muted">{keyword.category}</p>
           </div>
           <button
             onClick={(e) => {
               e.stopPropagation();
               handleDelete(keyword.id);
             }}
-            className="text-xs text-red-500 hover:underline"
+            className="text-xs text-primary hover:underline"
           >
             Borrar
           </button>

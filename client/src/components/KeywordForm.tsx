@@ -33,36 +33,36 @@ export function KeywordForm({ onCreated }: KeywordFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3 rounded-lg bg-white p-4 shadow">
+    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4 shadow-sm">
       <div>
-        <label className="block text-xs font-medium text-slate-700" htmlFor="term">Keyword</label>
+        <label className="block text-xs font-medium text-text" htmlFor="term">Keyword</label>
         <input
           id="term"
           required
           value={term}
           onChange={(e) => setTerm(e.target.value)}
-          className="mt-1 rounded border border-slate-300 px-3 py-1.5 text-sm"
+          className="mt-1 rounded border border-border bg-bg px-3 py-1.5 text-sm text-text"
           placeholder="tarot card clipart"
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-slate-700" htmlFor="category">Categoría (opcional)</label>
+        <label className="block text-xs font-medium text-text" htmlFor="category">Categoría (opcional)</label>
         <input
           id="category"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="mt-1 rounded border border-slate-300 px-3 py-1.5 text-sm"
+          className="mt-1 rounded border border-border bg-bg px-3 py-1.5 text-sm text-text"
           placeholder="tarot"
         />
       </div>
       <button
         type="submit"
         disabled={submitting}
-        className="rounded bg-slate-800 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+        className="rounded bg-primary px-4 py-1.5 text-sm font-medium text-surface hover:bg-primary-hover disabled:opacity-50"
       >
         {submitting ? "Agregando..." : "Agregar"}
       </button>
-      {error && <p className="w-full text-sm text-red-600">{error}</p>}
+      {error && <p className="w-full text-sm text-primary">{error}</p>}
     </form>
   );
 }

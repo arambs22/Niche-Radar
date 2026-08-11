@@ -27,23 +27,23 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4 rounded-lg bg-white p-8 shadow">
-        <h1 className="text-xl font-semibold text-slate-800">Crear cuenta</h1>
-        {error && <p className="rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
+    <div className="flex min-h-screen items-center justify-center bg-bg">
+      <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4 rounded-lg border border-border bg-surface p-8 shadow-sm">
+        <h1 className="font-display text-2xl font-semibold text-text">Crear cuenta</h1>
+        {error && <p className="rounded border border-primary/30 bg-primary/10 p-2 text-sm text-primary">{error}</p>}
         <div>
-          <label className="block text-sm font-medium text-slate-700" htmlFor="email">Email</label>
+          <label className="block text-sm font-medium text-text" htmlFor="email">Email</label>
           <input
             id="email"
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 w-full rounded border border-border bg-bg px-3 py-2 text-sm text-text"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700" htmlFor="password">Contraseña</label>
+          <label className="block text-sm font-medium text-text" htmlFor="password">Contraseña</label>
           <input
             id="password"
             type="password"
@@ -51,19 +51,19 @@ export function RegisterPage() {
             minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 w-full rounded border border-border bg-bg px-3 py-2 text-sm text-text"
           />
-          <p className="mt-1 text-xs text-slate-400">Mínimo 8 caracteres.</p>
+          <p className="mt-1 text-xs text-text-muted">Mínimo 8 caracteres.</p>
         </div>
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded bg-slate-800 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="w-full rounded bg-primary py-2 text-sm font-medium text-surface hover:bg-primary-hover disabled:opacity-50"
         >
           {submitting ? "Creando..." : "Crear cuenta"}
         </button>
-        <p className="text-center text-sm text-slate-500">
-          ¿Ya tienes cuenta? <Link to="/login" className="text-slate-800 underline">Inicia sesión</Link>
+        <p className="text-center text-sm text-text-muted">
+          ¿Ya tienes cuenta? <Link to="/login" className="text-primary underline">Inicia sesión</Link>
         </p>
       </form>
     </div>
