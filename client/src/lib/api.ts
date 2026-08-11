@@ -1,0 +1,57 @@
+export interface ApiErrorBody {
+  error: string | Record<string, string[] | undefined>;
+}
+
+/** Thrown by `api.*` calls when the backend responds with a non-2xx status. */
+export class ApiError extends Error {
+  status: number;
+  body: ApiErrorBody;
+
+  constructor(status: number, body: ApiErrorBody) {
+    super(typeof body.error === "string" ? body.error : "Solicitud inválida");
+    this.status = status;
+    this.body = body;
+  }
+}
+
+/** Flattens a backend error (a plain string, or a Zod fieldErrors object) into one display string. */
+export function formatApiError(error: ApiErrorBody["error"]): string {
+  if (typeof error === "string") return error;
+  return Object.values(error)
+    .flat()
+    .filter((msg): msg is string => Boolean(msg))
+    .join(" ");
+}
+
+const BASE_URL = "/api";
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
+  const body = await res.json();
+
+  if (!res.ok) {
+    throw new ApiError(res.status, body as ApiErrorBody);
+  }
+
+  return body as T;
+}
+
+/** Thin typed wrapper around fetch for the NicheRadar API, scoped to /api and cookie-authenticated. */
+export const api = {
+  get: <T>(path: string) => request<T>(path, { method: "GET" }),
+  post: <T>(path: string, data: unknown) =>
+    request<T>(path, { method: "POST", body: JSON.stringify(data) }),
+  delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+};
