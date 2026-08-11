@@ -11,6 +11,8 @@
   --color-primary-hover: #a63f22;
   --color-border: #e8d2ae;
   --color-rise: #5c6b47;
+  --color-series-2: #3e7c74;
+  --color-series-3: #c9a227;
 }
 
 :root.dark {
@@ -22,10 +24,19 @@
   --color-primary-hover: #f0925f;
   --color-border: #4a382c;
   --color-rise: #8fa06b;
+  --color-series-2: #5fa79d;
+  --color-series-3: #e0bb55;
 }
 
 @layer base {
   body {
     @apply bg-bg text-text font-sans;
+  }
+  .dashboard::-webkit-scrollbar {
+    display: none;
+  }
+  .dashboard {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }

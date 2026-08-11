@@ -1,5 +1,7 @@
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import On from "../assets/On.svg";
+import Off from "../assets/Off.svg";
 
 /** Top bar for authenticated pages: wordmark with a radar-pulse signature, theme toggle, logged-in email, and logout. */
 export function Navbar() {
@@ -7,7 +9,7 @@ export function Navbar() {
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <header className="flex items-center justify-between border-b border-border bg-surface px-6 py-3">
+    <header className="flex items-center justify-between border-b border-border bg-surface px-6 py-0">
       <span className="flex items-center gap-2 font-display text-lg font-semibold text-text">
         <span className="relative flex h-2.5 w-2.5">
           <span className="motion-safe:animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
@@ -20,9 +22,8 @@ export function Navbar() {
           type="button"
           onClick={toggleTheme}
           aria-label={theme === "light" ? "Cambiar a modo oscuro" : "Cambiar a modo claro"}
-          className="rounded border border-border px-2 py-1 hover:bg-bg"
         >
-          {theme === "light" ? "·:·" : "·:·"}
+          <img src={theme === "light" ? On : Off} alt="" className="h-12 w-12" />
         </button>
         <span>{user?.email}</span>
         <button

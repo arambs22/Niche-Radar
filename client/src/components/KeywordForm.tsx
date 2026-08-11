@@ -42,7 +42,7 @@ export function KeywordForm({ onCreated }: KeywordFormProps) {
           value={term}
           onChange={(e) => setTerm(e.target.value)}
           className="mt-1 rounded border border-border bg-bg px-3 py-1.5 text-sm text-text"
-          placeholder="tarot card clipart"
+          placeholder="Ex: Snoopy"
         />
       </div>
       <div>
@@ -52,7 +52,7 @@ export function KeywordForm({ onCreated }: KeywordFormProps) {
           value={category}
           onChange={(e) => setCategory(e.target.value)}
           className="mt-1 rounded border border-border bg-bg px-3 py-1.5 text-sm text-text"
-          placeholder="tarot"
+          placeholder="Ex: Clipart"
         />
       </div>
       <button
