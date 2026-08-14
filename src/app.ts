@@ -3,6 +3,7 @@ import cookieParser from "cookie-parser";
 import { healthRouter } from "./routes/health.route.js";
 import { authRouter } from "./routes/auth.route.js";
 import { keywordsRouter } from "./routes/keywords.route.js";
+import { regionsRouter } from "./routes/regions.route.js";
 import { trendsRouter } from "./routes/trends.route.js";
 import { internalRouter } from "./routes/internalCollect.route.js";
 import { AppError } from "./utils/errors.js";
@@ -17,6 +18,7 @@ export function createApp() {
   app.use(healthRouter);
   app.use("/api/auth", authRouter);
   app.use("/api/keywords", keywordsRouter);
+  app.use("/api/regions", regionsRouter);
   // Mount /api/internal before /api: trendsRouter's requireAuth middleware is path-unrestricted,
   // so it would intercept /api/internal/* if registered first (Express matches in order).
   app.use("/api/internal", internalRouter);
