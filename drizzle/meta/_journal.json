@@ -15,6 +15,13 @@
       "when": 1786444644356,
       "tag": "0001_ambitious_captain_midlands",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786695605670,
+      "tag": "0002_yummy_leper_queen",
+      "breakpoints": true
     }
   ]
 }

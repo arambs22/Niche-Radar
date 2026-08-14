@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, unique } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, unique, boolean } from "drizzle-orm/pg-core";
 
 /** Registered users. Passwords are stored as bcrypt hashes, never in plain text. */
 export const users = pgTable("users", {
@@ -21,6 +21,7 @@ export const keywords = pgTable(
     category: text("category").notNull().default("general"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     removedAt: timestamp("removed_at"),
+    autoCollectPaused: boolean("auto_collect_paused").notNull().default(false),
   },
   (table) => ({
     // Uniqueness is scoped per user: different users may track the
@@ -59,3 +60,38 @@ export const relatedQueries = pgTable("related_queries", {
   growthValue: text("growth_value").notNull(),
   collectedAt: timestamp("collected_at").defaultNow().notNull(),
 });
+
+/** Regions a user tracks in their dashboard; drives which geos the scheduled collector must cover. Worldwide ("") is implicit and never stored here. */
+export const userRegions = pgTable(
+  "user_regions",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    geo: text("geo").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    uniqueUserGeo: unique().on(table.userId, table.geo),
+  })
+);
+
+/** Tracks the outcome of the most recent collection attempt per keyword+region, for both scheduled and manual runs. Powers the per-keyword blocked indicator in the dashboard. */
+export const keywordCollectionStatus = pgTable(
+  "keyword_collection_status",
+  {
+    id: serial("id").primaryKey(),
+    keywordId: integer("keyword_id")
+      .notNull()
+      .references(() => keywords.id, { onDelete: "cascade" }),
+    geo: text("geo").notNull().default(""),
+    lastAttemptAt: timestamp("last_attempt_at").notNull(),
+    lastSuccessAt: timestamp("last_success_at"),
+    lastErrorMessage: text("last_error_message"),
+    consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+  },
+  (table) => ({
+    uniqueKeywordGeo: unique().on(table.keywordId, table.geo),
+  })
+);
