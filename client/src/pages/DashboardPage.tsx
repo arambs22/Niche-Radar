@@ -26,7 +26,7 @@ export function DashboardPage() {
   const { user } = useAuth();
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [addedRegions, setAddedRegions] = useState<string[]>(() => loadRegionList("nicheradar_regions_added", []));
+  const [addedRegions, setAddedRegions] = useState<string[]>([]);
   const [activeRegions, setActiveRegions] = useState<string[]>(() => loadRegionList("nicheradar_regions_active", [""]));
   const [trendsByRegion, setTrendsByRegion] = useState<Record<string, KeywordTrend[]>>({});
   const [relatedByRegion, setRelatedByRegion] = useState<Record<string, KeywordRelated[]>>({});
@@ -34,15 +34,16 @@ export function DashboardPage() {
   const [loadingTrends, setLoadingTrends] = useState(true);
 
   useEffect(() => {
-    localStorage.setItem("nicheradar_regions_added", JSON.stringify(addedRegions));
-  }, [addedRegions]);
+    api.get<string[]>("/regions").then(setAddedRegions);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem("nicheradar_regions_active", JSON.stringify(activeRegions));
   }, [activeRegions]);
 
-  function refetchKeywords() {
-    return api.get<Keyword[]>("/keywords").then((res) => {
+  function refetchKeywords(regions: string[] = activeRegions) {
+    const geoParam = regions.join(",");
+    return api.get<Keyword[]>(`/keywords?geo=${encodeURIComponent(geoParam)}`).then((res) => {
       setKeywords(res);
       setSelectedId((prev) => prev ?? res[0]?.id ?? null);
       return res;
@@ -50,8 +51,8 @@ export function DashboardPage() {
   }
 
   useEffect(() => {
-    refetchKeywords().finally(() => setLoadingKeywords(false));
-  }, []);
+    refetchKeywords(activeRegions).finally(() => setLoadingKeywords(false));
+  }, [activeRegions]);
 
   useEffect(() => {
     setLoadingTrends(true);
@@ -84,11 +85,17 @@ export function DashboardPage() {
 
   function handleAddRegion(code: string) {
     setAddedRegions((prev) => (prev.includes(code) ? prev : [...prev, code]));
+    api.post("/regions", { geo: code }).catch(() => {
+      setAddedRegions((prev) => prev.filter((c) => c !== code));
+    });
   }
 
   function handleRemoveRegion(code: string) {
     setAddedRegions((prev) => prev.filter((c) => c !== code));
     setActiveRegions((prev) => prev.filter((c) => c !== code));
+    api.delete(`/regions/${encodeURIComponent(code)}`).catch(() => {
+      api.get<string[]>("/regions").then(setAddedRegions);
+    });
   }
 
   function handleToggleActive(code: string) {
@@ -126,14 +133,15 @@ export function DashboardPage() {
         />
         <div className="grid min-h-[480px] flex-1 gap-6 md:grid-cols-[320px_1fr]">
           <div className="flex min-h-0 flex-col gap-4">
-            <KeywordForm onCreated={refetchKeywords} />
+            <KeywordForm onCreated={() => refetchKeywords()} />
             <div className="min-h-0 flex-1 overflow-y-auto">
               {loadingKeywords ? (
                 <p className="text-sm text-text-muted">Cargando keywords...</p>
               ) : (
                 <KeywordList
                   keywords={keywords}
-                  onDeleted={refetchKeywords}
+                  activeRegions={activeRegions}
+                  onChanged={() => refetchKeywords()}
                   selectedId={selectedId}
                   onSelect={setSelectedId}
                 />
