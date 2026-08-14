@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Navbar } from "../components/Navbar";
 import { KeywordForm } from "../components/KeywordForm";
 import { KeywordList } from "../components/KeywordList";
@@ -9,6 +9,10 @@ import { HistorySidebar } from "../components/HistorySidebar";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
 import type { Keyword, KeywordTrend, KeywordRelated } from "../lib/types";
+
+const ACTIVE_REGIONS_KEY = "nicheradar_regions_active";
+/** Where the added-region list lived before it moved to the backend. Read once, migrated, then dropped. */
+const LEGACY_ADDED_REGIONS_KEY = "nicheradar_regions_added";
 
 function loadRegionList(key: string, fallback: string[]): string[] {
   const raw = localStorage.getItem(key);
@@ -26,23 +30,67 @@ export function DashboardPage() {
   const { user } = useAuth();
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [addedRegions, setAddedRegions] = useState<string[]>(() => loadRegionList("nicheradar_regions_added", []));
-  const [activeRegions, setActiveRegions] = useState<string[]>(() => loadRegionList("nicheradar_regions_active", [""]));
+  const [addedRegions, setAddedRegions] = useState<string[]>([]);
+  const [activeRegions, setActiveRegions] = useState<string[]>(() => loadRegionList(ACTIVE_REGIONS_KEY, [""]));
   const [trendsByRegion, setTrendsByRegion] = useState<Record<string, KeywordTrend[]>>({});
   const [relatedByRegion, setRelatedByRegion] = useState<Record<string, KeywordRelated[]>>({});
   const [loadingKeywords, setLoadingKeywords] = useState(true);
   const [loadingTrends, setLoadingTrends] = useState(true);
+  const hydratedRegions = useRef(false);
 
   useEffect(() => {
-    localStorage.setItem("nicheradar_regions_added", JSON.stringify(addedRegions));
-  }, [addedRegions]);
+    // Runs once per mount even under StrictMode's double-invoked effects, so
+    // the migration below can't interleave with a second copy of itself.
+    if (hydratedRegions.current) return;
+    hydratedRegions.current = true;
+
+    /**
+     * Loads the tracked regions from the backend. Users from before regions
+     * were persisted server-side get an empty list back, so their old
+     * localStorage list is pushed up once and then dropped. Whatever the
+     * result, the active list is reconciled against it — otherwise a region
+     * could stay active (and keep being fetched and charted) with no tab
+     * rendered to switch it off.
+     */
+    async function hydrateRegions() {
+      let tracked = await api.get<string[]>("/regions");
+
+      if (tracked.length === 0) {
+        const legacy = loadRegionList(LEGACY_ADDED_REGIONS_KEY, []).filter((code) => code !== "");
+        if (legacy.length > 0) {
+          await Promise.all(legacy.map((code) => api.post("/regions", { geo: code })));
+          // Re-read instead of trusting the local list: the backend is the
+          // source of truth now, and it may already hold regions this browser
+          // never knew about.
+          tracked = await api.get<string[]>("/regions");
+        }
+      }
+      // Only dropped once the migration above actually went through; if it
+      // threw, the key survives and the next load retries.
+      localStorage.removeItem(LEGACY_ADDED_REGIONS_KEY);
+
+      setAddedRegions(tracked);
+      // Worldwide ("") is implicit: it always has a tab, so it never needs to
+      // be in `tracked`. Anything else has to go, or it would stay active with
+      // no tab to turn it off. Fall back to Worldwide if that empties the list.
+      setActiveRegions((prev) => {
+        const reconciled = prev.filter((code) => code === "" || tracked.includes(code));
+        return reconciled.length > 0 ? reconciled : [""];
+      });
+    }
+
+    hydrateRegions().catch((err) => {
+      console.error("No se pudieron cargar las regiones guardadas", err);
+    });
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem("nicheradar_regions_active", JSON.stringify(activeRegions));
+    localStorage.setItem(ACTIVE_REGIONS_KEY, JSON.stringify(activeRegions));
   }, [activeRegions]);
 
-  function refetchKeywords() {
-    return api.get<Keyword[]>("/keywords").then((res) => {
+  function refetchKeywords(regions: string[] = activeRegions) {
+    const geoParam = regions.join(",");
+    return api.get<Keyword[]>(`/keywords?geo=${encodeURIComponent(geoParam)}`).then((res) => {
       setKeywords(res);
       setSelectedId((prev) => prev ?? res[0]?.id ?? null);
       return res;
@@ -50,8 +98,8 @@ export function DashboardPage() {
   }
 
   useEffect(() => {
-    refetchKeywords().finally(() => setLoadingKeywords(false));
-  }, []);
+    refetchKeywords(activeRegions).finally(() => setLoadingKeywords(false));
+  }, [activeRegions]);
 
   useEffect(() => {
     setLoadingTrends(true);
@@ -84,11 +132,18 @@ export function DashboardPage() {
 
   function handleAddRegion(code: string) {
     setAddedRegions((prev) => (prev.includes(code) ? prev : [...prev, code]));
+    api.post("/regions", { geo: code }).catch(() => {
+      setAddedRegions((prev) => prev.filter((c) => c !== code));
+    });
   }
 
   function handleRemoveRegion(code: string) {
     setAddedRegions((prev) => prev.filter((c) => c !== code));
     setActiveRegions((prev) => prev.filter((c) => c !== code));
+    api.delete(`/regions/${encodeURIComponent(code)}`).catch(() => {
+      api.get<string[]>("/regions").then(setAddedRegions);
+      setActiveRegions((prev) => (prev.includes(code) ? prev : [...prev, code]));
+    });
   }
 
   function handleToggleActive(code: string) {
@@ -126,14 +181,15 @@ export function DashboardPage() {
         />
         <div className="grid min-h-[480px] flex-1 gap-6 md:grid-cols-[320px_1fr]">
           <div className="flex min-h-0 flex-col gap-4">
-            <KeywordForm onCreated={refetchKeywords} />
+            <KeywordForm onCreated={() => refetchKeywords()} />
             <div className="min-h-0 flex-1 overflow-y-auto">
               {loadingKeywords ? (
                 <p className="text-sm text-text-muted">Cargando keywords...</p>
               ) : (
                 <KeywordList
                   keywords={keywords}
-                  onDeleted={refetchKeywords}
+                  activeRegions={activeRegions}
+                  onChanged={() => refetchKeywords()}
                   selectedId={selectedId}
                   onSelect={setSelectedId}
                 />
