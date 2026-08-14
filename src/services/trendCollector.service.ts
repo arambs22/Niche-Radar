@@ -2,7 +2,7 @@ import { db } from "../db/client.js";
 import { keywords, trendSnapshots, relatedQueries, keywordCollectionStatus, userRegions } from "../db/schema.js";
 import { eq, and, isNull } from "drizzle-orm";
 import {
-  fetchInterestOverTimeBatch,
+  fetchInterestOverTime,
   fetchRelatedQueries,
   sleep,
 } from "./googleTrends.service.js";
@@ -11,10 +11,25 @@ import { logger } from "../utils/logger.js";
 
 const BASE_DELAY_MS = 8000;
 const JITTER_MS = 3000;
-const MAX_CONSECUTIVE_FAILURES = 3;
-const MAX_KEYWORDS_PER_REQUEST = 5;
+const SKIP_DELAY_MS = 700;
 
-type CollectionStatus = "success" | "failed";
+/**
+ * Consecutive failed keywords after which a run gives up, both within a
+ * region and (via the flag on RegionCollectionResult) across regions.
+ * Also the threshold at which the dashboard reports a keyword as blocked —
+ * imported by keywords.route.ts so the two can't drift apart.
+ */
+export const MAX_CONSECUTIVE_FAILURES = 3;
+
+type CollectionStatus = "skipped" | "success" | "failed";
+
+export interface RegionCollectionResult {
+  succeeded: number;
+  skipped: number;
+  failed: number;
+  /** True when the region's loop bailed out early on repeated failures (likely rate-limited) rather than finishing its keyword list. */
+  stoppedByCircuitBreaker: boolean;
+}
 
 interface KeywordRow {
   id: number;
@@ -25,14 +40,6 @@ function randomDelay(): number {
   return BASE_DELAY_MS + Math.floor(Math.random() * JITTER_MS);
 }
 
-function chunk<T>(items: T[], size: number): T[][] {
-  const result: T[][] = [];
-  for (let i = 0; i < items.length; i += size) {
-    result.push(items.slice(i, i + size));
-  }
-  return result;
-}
-
 /** Every actively tracked (non-archived, not paused) keyword across all users. */
 async function getEligibleKeywords(): Promise<KeywordRow[]> {
   return db
@@ -41,28 +48,21 @@ async function getEligibleKeywords(): Promise<KeywordRow[]> {
     .where(and(isNull(keywords.removedAt), eq(keywords.autoCollectPaused, false)));
 }
 
-/** Filters out keywords that already have a snapshot for this region today (local time), so groups sent to Google only contain keywords that actually need data. */
-async function filterAlreadyCollectedToday(group: KeywordRow[], geo: string): Promise<KeywordRow[]> {
-  const today = getTodayLocal();
-  const pending: KeywordRow[] = [];
-
-  for (const kw of group) {
-    const existing = await db
-      .select()
-      .from(trendSnapshots)
-      .where(
-        and(eq(trendSnapshots.keywordId, kw.id), eq(trendSnapshots.geo, geo), eq(trendSnapshots.date, today))
+/** True when this keyword+region already has a snapshot for today (local time). */
+async function alreadyCollectedToday(keywordId: number, geo: string): Promise<boolean> {
+  const existing = await db
+    .select({ id: trendSnapshots.id })
+    .from(trendSnapshots)
+    .where(
+      and(
+        eq(trendSnapshots.keywordId, keywordId),
+        eq(trendSnapshots.geo, geo),
+        eq(trendSnapshots.date, getTodayLocal())
       )
-      .limit(1);
+    )
+    .limit(1);
 
-    if (existing.length === 0) {
-      pending.push(kw);
-    } else {
-      logger.info(`  [${geo || "worldwide"}] "${kw.term}" skipped (already collected today)`);
-    }
-  }
-
-  return pending;
+  return existing.length > 0;
 }
 
 async function recordCollectionSuccess(keywordId: number, geo: string, attemptedAt: Date): Promise<void> {
@@ -106,123 +106,124 @@ async function recordCollectionFailure(
 }
 
 /**
- * Collects one batched interest-over-time request for the whole group,
- * then one related-queries request per keyword in the group (unbatched —
- * see Global Constraints in the plan for why). Records collection status
- * per keyword regardless of outcome.
+ * Collects one keyword in one region: its interest-over-time series (one
+ * request, one keyword — never batched, see fetchInterestOverTime) and then
+ * its rising related queries. Records collection status for the
+ * keyword+region on every attempt, success or failure.
  */
-async function collectForChunk(group: KeywordRow[], geo: string): Promise<CollectionStatus[]> {
-  const attemptedAt = new Date();
-
-  let interestByTerm: Record<string, { date: string; value: number }[]>;
-  try {
-    interestByTerm = await fetchInterestOverTimeBatch(
-      group.map((kw) => kw.term),
-      geo
-    );
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.error(`Failed batch of ${group.length} for region "${geo || "worldwide"}"`, { error: message });
-    for (const kw of group) {
-      await recordCollectionFailure(kw.id, geo, attemptedAt, message);
-    }
-    await sleep(randomDelay());
-    return group.map(() => "failed" as const);
+async function collectForKeyword(keywordId: number, term: string, geo: string): Promise<CollectionStatus> {
+  if (await alreadyCollectedToday(keywordId, geo)) {
+    logger.info(`  [${geo || "worldwide"}] "${term}" skipped (already collected today)`);
+    return "skipped";
   }
 
-  for (const kw of group) {
-    const timeline = interestByTerm[kw.term] ?? [];
+  const attemptedAt = new Date();
+
+  try {
+    const timeline = await fetchInterestOverTime(term, geo);
     for (const point of timeline) {
       await db
         .insert(trendSnapshots)
-        .values({ keywordId: kw.id, geo, date: point.date, value: point.value })
+        .values({ keywordId, geo, date: point.date, value: point.value })
         .onConflictDoNothing();
     }
-  }
 
-  await sleep(randomDelay());
-
-  const statuses: CollectionStatus[] = [];
-  for (const kw of group) {
-    try {
-      const rising = await fetchRelatedQueries(kw.term, geo);
-      for (const item of rising) {
-        await db.insert(relatedQueries).values({
-          keywordId: kw.id,
-          geo,
-          query: item.query,
-          growthValue: item.growthValue,
-        });
-      }
-      await recordCollectionSuccess(kw.id, geo, attemptedAt);
-      statuses.push("success");
-      const timeline = interestByTerm[kw.term] ?? [];
-      logger.info(`  [${geo || "worldwide"}] "${kw.term}" ok (${timeline.length} snapshots, ${rising.length} related queries)`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.error(`Failed related queries for "${kw.term}" in region "${geo || "worldwide"}"`, { error: message });
-      await recordCollectionFailure(kw.id, geo, attemptedAt, message);
-      statuses.push("failed");
-    }
     await sleep(randomDelay());
-  }
 
-  return statuses;
+    const rising = await fetchRelatedQueries(term, geo);
+    for (const item of rising) {
+      await db.insert(relatedQueries).values({
+        keywordId,
+        geo,
+        query: item.query,
+        growthValue: item.growthValue,
+      });
+    }
+
+    await recordCollectionSuccess(keywordId, geo, attemptedAt);
+    logger.info(
+      `  [${geo || "worldwide"}] "${term}" ok (${timeline.length} snapshots, ${rising.length} related queries)`
+    );
+    return "success";
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error(`Failed to collect "${term}" for region "${geo || "worldwide"}"`, { error: message });
+    await recordCollectionFailure(keywordId, geo, attemptedAt, message);
+    return "failed";
+  }
 }
 
 /**
  * Collects trend data for every eligible keyword across all users, for a
- * single region, in groups of up to 5 keywords per request. Runs
- * sequentially and stops early after repeated consecutive group failures
- * (likely a temporary upstream rate limit).
+ * single region, one keyword per request. Runs sequentially and stops early
+ * after repeated consecutive failures (likely a temporary upstream rate
+ * limit), reporting that back to the caller.
  */
-export async function collectTrendsForAllUsers(geo: string = ""): Promise<void> {
+export async function collectTrendsForAllUsers(geo: string = ""): Promise<RegionCollectionResult> {
   const eligible = await getEligibleKeywords();
-  const groups = chunk(eligible, MAX_KEYWORDS_PER_REQUEST);
 
-  let consecutiveFailedGroups = 0;
-  let succeeded = 0;
-  let skipped = 0;
-  let failed = 0;
+  let consecutiveFailures = 0;
+  const result: RegionCollectionResult = {
+    succeeded: 0,
+    skipped: 0,
+    failed: 0,
+    stoppedByCircuitBreaker: false,
+  };
 
-  for (const group of groups) {
-    const pending = await filterAlreadyCollectedToday(group, geo);
-    skipped += group.length - pending.length;
+  for (const { id, term } of eligible) {
+    const status = await collectForKeyword(id, term, geo);
 
-    if (pending.length === 0) {
+    if (status === "skipped") {
+      result.skipped++;
+      await sleep(SKIP_DELAY_MS);
       continue;
     }
 
-    const statuses = await collectForChunk(pending, geo);
-    succeeded += statuses.filter((s) => s === "success").length;
-    failed += statuses.filter((s) => s === "failed").length;
-
-    if (statuses.includes("success")) {
-      consecutiveFailedGroups = 0;
+    if (status === "success") {
+      result.succeeded++;
+      consecutiveFailures = 0;
     } else {
-      consecutiveFailedGroups++;
-      if (consecutiveFailedGroups >= MAX_CONSECUTIVE_FAILURES) {
+      result.failed++;
+      consecutiveFailures++;
+      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
         logger.error(
-          `Stopped after ${MAX_CONSECUTIVE_FAILURES} consecutive failed groups (likely rate-limited).`
+          `Stopped after ${MAX_CONSECUTIVE_FAILURES} consecutive failures (likely rate-limited).`
         );
+        result.stoppedByCircuitBreaker = true;
         break;
       }
     }
+
+    await sleep(randomDelay());
   }
 
-  logger.info(`Summary [${geo || "worldwide"}]: ${succeeded} succeeded, ${skipped} skipped, ${failed} failed`);
+  logger.info(
+    `Summary [${geo || "worldwide"}]: ${result.succeeded} succeeded, ${result.skipped} skipped, ${result.failed} failed`
+  );
+  return result;
 }
 
 /**
  * Collects trend data across every region tracked by any user (plus
  * Worldwide, always implicit), one region at a time, sequentially. This
  * is the entry point for the scheduled collection endpoint.
+ *
+ * If a region's run trips the circuit breaker, the remaining regions are
+ * abandoned too: the rate limit is upstream and per-IP, so starting the
+ * next region with a fresh failure counter would just multiply the
+ * requests hitting an endpoint that is already refusing us.
  */
 export async function collectTrendsForAllRegions(): Promise<void> {
   const regions = await getAllTrackedRegions();
   for (const geo of regions) {
     logger.info(`Starting collection for geo="${geo || "worldwide"}"...`);
-    await collectTrendsForAllUsers(geo);
+    const result = await collectTrendsForAllUsers(geo);
+    if (result.stoppedByCircuitBreaker) {
+      logger.error(
+        `Aborting the rest of the run after region "${geo || "worldwide"}" tripped the circuit breaker (likely rate-limited).`
+      );
+      return;
+    }
   }
 }
 
