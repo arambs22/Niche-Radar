@@ -17,6 +17,8 @@ export function createApp() {
   app.use(healthRouter);
   app.use("/api/auth", authRouter);
   app.use("/api/keywords", keywordsRouter);
+  // Mount /api/internal before /api: trendsRouter's requireAuth middleware is path-unrestricted,
+  // so it would intercept /api/internal/* if registered first (Express matches in order).
   app.use("/api/internal", internalRouter);
   app.use("/api", trendsRouter);
 
