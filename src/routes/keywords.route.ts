@@ -2,8 +2,9 @@ import { Router } from "express";
 import { z } from "zod";
 import { and, eq, isNotNull, isNull, lt } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { keywords, trendSnapshots, relatedQueries, users } from "../db/schema.js";
+import { keywords, trendSnapshots, relatedQueries, users, keywordCollectionStatus } from "../db/schema.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
+import { MAX_CONSECUTIVE_FAILURES } from "../services/trendCollector.service.js";
 
 export const keywordsRouter = Router();
 
@@ -89,7 +90,21 @@ keywordsRouter.get("/", async (req, res, next) => {
       .from(keywords)
       .where(and(eq(keywords.userId, req.userId!), isNull(keywords.removedAt)))
       .orderBy(keywords.category, keywords.term);
-    res.json(result);
+
+    const geoParam = req.query.geo;
+    if (typeof geoParam !== "string") {
+      res.json(result);
+      return;
+    }
+
+    const geos = geoParam.split(",");
+    const withStatus = await Promise.all(
+      result.map(async (kw) => ({
+        ...kw,
+        collectionStatus: await getCollectionStatusForKeyword(kw.id, geos),
+      }))
+    );
+    res.json(withStatus);
   } catch (err) {
     next(err);
   }
@@ -142,6 +157,42 @@ keywordsRouter.patch("/:id/restore", async (req, res, next) => {
     }
 
     res.json(restored);
+  } catch (err) {
+    next(err);
+  }
+});
+
+const autoCollectSchema = z.object({
+  paused: z.boolean(),
+});
+
+/** PATCH /:id/auto-collect — pauses or resumes automatic collection for a keyword owned by the authenticated user. */
+keywordsRouter.patch("/:id/auto-collect", async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
+
+    const parsed = autoCollectSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+      return;
+    }
+
+    const [updated] = await db
+      .update(keywords)
+      .set({ autoCollectPaused: parsed.data.paused })
+      .where(and(eq(keywords.id, id), eq(keywords.userId, req.userId!)))
+      .returning();
+
+    if (!updated) {
+      res.status(404).json({ error: "Keyword no encontrada" });
+      return;
+    }
+
+    res.json(updated);
   } catch (err) {
     next(err);
   }
@@ -261,4 +312,41 @@ async function getKeywordRegions(keywordId: number): Promise<string[]> {
     .from(relatedQueries)
     .where(eq(relatedQueries.keywordId, keywordId));
   return Array.from(new Set([...snapshotGeos.map((s) => s.geo), ...relatedGeos.map((r) => r.geo)]));
+}
+
+interface KeywordRegionStatus {
+  blocked: boolean;
+  lastAttemptAt: string;
+  lastSuccessAt: string | null;
+  consecutiveFailures: number;
+}
+
+/**
+ * Per-region collection status for one keyword. A keyword only counts as
+ * "blocked" once it has failed as many times in a row as the collector
+ * itself treats as a likely rate limit — a single transient failure (a
+ * flaky related-queries request, say) must not light up the dashboard.
+ */
+async function getCollectionStatusForKeyword(
+  keywordId: number,
+  geos: string[]
+): Promise<Record<string, KeywordRegionStatus>> {
+  const rows = await db
+    .select()
+    .from(keywordCollectionStatus)
+    .where(eq(keywordCollectionStatus.keywordId, keywordId));
+
+  const byGeo: Record<string, KeywordRegionStatus> = {};
+  for (const geo of geos) {
+    const row = rows.find((r) => r.geo === geo);
+    if (row) {
+      byGeo[geo] = {
+        blocked: row.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES,
+        lastAttemptAt: row.lastAttemptAt.toISOString(),
+        lastSuccessAt: row.lastSuccessAt ? row.lastSuccessAt.toISOString() : null,
+        consecutiveFailures: row.consecutiveFailures,
+      };
+    }
+  }
+  return byGeo;
 }

@@ -4,6 +4,13 @@ export interface User {
   historyRetentionDays: number;
 }
 
+export interface KeywordRegionStatus {
+  blocked: boolean;
+  lastAttemptAt: string;
+  lastSuccessAt: string | null;
+  consecutiveFailures: number;
+}
+
 export interface Keyword {
   id: number;
   userId: number;
@@ -11,6 +18,8 @@ export interface Keyword {
   category: string;
   createdAt: string;
   removedAt: string | null;
+  autoCollectPaused: boolean;
+  collectionStatus?: Record<string, KeywordRegionStatus>;
 }
 
 export interface TrendPoint {

@@ -12,7 +12,16 @@ export interface RelatedQueryResult {
 
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 
-/** Fetches the interest-over-time series for a keyword over the last 90 days. */
+/**
+ * Fetches the interest-over-time series for a keyword over the last 90 days.
+ *
+ * Deliberately one keyword per request: Google Trends normalizes a
+ * multi-keyword (comparison) response against the peak of the highest-volume
+ * term in that group, so a low-volume niche keyword's 0-100 values would
+ * depend on whichever keywords it happened to be grouped with. Requesting one
+ * term at a time keeps every stored value self-normalized and comparable
+ * across days. Do not batch this.
+ */
 export async function fetchInterestOverTime(
   keyword: string,
   geo: string = ""
