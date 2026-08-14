@@ -126,6 +126,7 @@ async function collectForChunk(group: KeywordRow[], geo: string): Promise<Collec
     for (const kw of group) {
       await recordCollectionFailure(kw.id, geo, attemptedAt, message);
     }
+    await sleep(randomDelay());
     return group.map(() => "failed" as const);
   }
 
