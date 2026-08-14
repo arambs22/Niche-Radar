@@ -9,8 +9,12 @@ jobs:
   collect:
     runs-on: ubuntu-latest
     steps:
+      # The endpoint acknowledges with 202 and runs the collection in the
+      # background, so this request returns immediately -- it does not wait
+      # for the run to finish. --fail accepts any 2xx and still fails the
+      # job on 401 (bad secret) or 409 (a run is already in flight).
       - name: Trigger scheduled collection
         run: |
-          curl --fail --max-time 3600 -X POST \
+          curl --fail --max-time 60 -X POST \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             "${{ secrets.NICHERADAR_URL }}/api/internal/collect"
