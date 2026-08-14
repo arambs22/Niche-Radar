@@ -11,6 +11,10 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, "JWT_SECRET debe tener al menos 32 caracteres"),
   JWT_EXPIRES_IN_SECONDS: z.coerce.number().int().positive().default(60 * 60 * 24 * 7), // 7 days
 
+  // Shared secret for the internal collection-trigger endpoint. Not tied
+  // to any user — it authenticates the scheduled GitHub Actions workflow.
+  CRON_SECRET: z.string().min(32, "CRON_SECRET debe tener al menos 32 caracteres"),
+
   // Etsy integration is optional: if either is missing, Etsy-backed
   // features are disabled rather than the app failing to start.
   ETSY_API_KEY: z.string().optional(),
