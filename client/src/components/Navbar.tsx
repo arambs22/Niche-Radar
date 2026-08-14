@@ -2,6 +2,8 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import On from "../assets/On.svg";
 import Off from "../assets/Off.svg";
+import TonoClaro from "../assets/Tono_Claro.png";
+import TonoOscuro from "../assets/Tono_Oscuro.png";
 
 /** Top bar for authenticated pages: wordmark with a radar-pulse signature, theme toggle, logged-in email, and logout. */
 export function Navbar() {
@@ -18,13 +20,20 @@ export function Navbar() {
         NicheRadar
       </span>
       <div className="flex items-center gap-4 text-sm text-text-muted">
-        <button
-          type="button"
-          onClick={toggleTheme}
-          aria-label={theme === "light" ? "Cambiar a modo oscuro" : "Cambiar a modo claro"}
-        >
-          <img src={theme === "light" ? On : Off} alt="" className="h-12 w-12" />
-        </button>
+        <span className="flex items-center">
+          <img
+            src={theme === "light" ? TonoClaro : TonoOscuro}
+            alt=""
+            className="h-19 w-14"
+          />
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={theme === "light" ? "Cambiar a modo oscuro" : "Cambiar a modo claro"}
+          >
+            <img src={theme === "light" ? On : Off} alt="" className="h-12 w-12" />
+          </button>
+        </span>
         <span>{user?.email}</span>
         <button
           type="button"

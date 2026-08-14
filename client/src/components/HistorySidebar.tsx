@@ -3,9 +3,12 @@ import { api } from "../lib/api";
 import { getRegionLabel } from "../lib/regions";
 import type { KeywordHistoryEntry } from "../lib/types";
 import { HistoryDetailModal } from "./HistoryDetailModal";
+import historyIcon from "../assets/history.svg";
 
 const RETENTION_OPTIONS = [15, 30, 60, 90];
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+// "" is a real region code (Worldwide), so the "no filter" option needs its own sentinel to stay distinguishable from it.
+const ALL_REGIONS_FILTER = "__all__";
 
 interface HistorySidebarProps {
   initialRetentionDays: number;
@@ -21,7 +24,7 @@ export function HistorySidebar({ initialRetentionDays }: HistorySidebarProps) {
   const [open, setOpen] = useState(false);
   const [entries, setEntries] = useState<KeywordHistoryEntry[]>([]);
   const [loading, setLoading] = useState(false);
-  const [regionFilter, setRegionFilter] = useState("");
+  const [regionFilter, setRegionFilter] = useState(ALL_REGIONS_FILTER);
   const [retentionDays, setRetentionDays] = useState(initialRetentionDays);
   const [detailId, setDetailId] = useState<number | null>(null);
 
@@ -40,7 +43,8 @@ export function HistorySidebar({ initialRetentionDays }: HistorySidebarProps) {
   }
 
   const allRegions = Array.from(new Set(entries.flatMap((e) => e.regions)));
-  const filtered = regionFilter ? entries.filter((e) => e.regions.includes(regionFilter)) : entries;
+  const filtered =
+    regionFilter === ALL_REGIONS_FILTER ? entries : entries.filter((e) => e.regions.includes(regionFilter));
   const detailEntry = entries.find((e) => e.id === detailId) ?? null;
 
   return (
@@ -51,7 +55,7 @@ export function HistorySidebar({ initialRetentionDays }: HistorySidebarProps) {
         onMouseLeave={() => setOpen(false)}
       >
         <div className="flex items-center justify-center rounded-l-lg border border-r-0 border-border bg-surface px-1.5 py-3 text-text-muted">
-          🕒
+          <img src={historyIcon} alt="Historial" className="h-4 w-4" />
         </div>
         <div
           className={`absolute right-full top-1/2 w-72 -translate-y-1/2 rounded-lg border border-border bg-surface p-4 shadow-2xl transition-all duration-200 ${
@@ -78,7 +82,7 @@ export function HistorySidebar({ initialRetentionDays }: HistorySidebarProps) {
               onChange={(e) => setRegionFilter(e.target.value)}
               className="mb-3 w-full rounded border border-border bg-bg px-2 py-1 text-xs text-text"
             >
-              <option value="">Todas las regiones</option>
+              <option value={ALL_REGIONS_FILTER}>Todas las regiones</option>
               {allRegions.map((code) => (
                 <option key={code} value={code}>
                   {getRegionLabel(code)}
