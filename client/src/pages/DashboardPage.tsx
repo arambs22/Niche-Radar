@@ -95,6 +95,7 @@ export function DashboardPage() {
     setActiveRegions((prev) => prev.filter((c) => c !== code));
     api.delete(`/regions/${encodeURIComponent(code)}`).catch(() => {
       api.get<string[]>("/regions").then(setAddedRegions);
+      setActiveRegions((prev) => (prev.includes(code) ? prev : [...prev, code]));
     });
   }
 
