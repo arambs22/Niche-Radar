@@ -8,6 +8,7 @@ export interface KeywordRegionStatus {
   blocked: boolean;
   lastAttemptAt: string;
   lastSuccessAt: string | null;
+  consecutiveFailures: number;
 }
 
 export interface Keyword {

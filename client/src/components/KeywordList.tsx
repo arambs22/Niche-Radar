@@ -15,6 +15,25 @@ function getBlockedRegions(keyword: Keyword, activeRegions: string[]): string[] 
   return activeRegions.filter((geo) => keyword.collectionStatus?.[geo]?.blocked);
 }
 
+function formatTimestamp(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
+}
+
+/** Tooltip for the blocked indicator: one line per blocked region with its last attempt and how many attempts have failed in a row. */
+function buildBlockedTooltip(keyword: Keyword, blockedRegions: string[]): string {
+  const lines = blockedRegions.map((geo) => {
+    const status = keyword.collectionStatus?.[geo];
+    const label = getRegionLabel(geo);
+    if (!status) return label;
+    const attempts = `${status.consecutiveFailures} ${
+      status.consecutiveFailures === 1 ? "intento fallido" : "intentos fallidos"
+    }`;
+    return `${label} — último intento: ${formatTimestamp(status.lastAttemptAt)}, ${attempts}`;
+  });
+  return `Google bloqueó la recolección en:\n${lines.join("\n")}`;
+}
+
 /** Lists the user's tracked keywords; click to select, pause/resume automatic collection, or archive individually. */
 export function KeywordList({ keywords, activeRegions, onChanged, selectedId, onSelect }: KeywordListProps) {
   async function handleDelete(id: number) {
@@ -50,7 +69,7 @@ export function KeywordList({ keywords, activeRegions, onChanged, selectedId, on
               </div>
               {blockedRegions.length > 0 && (
                 <span
-                  title={`Google bloqueó la recolección en: ${blockedRegions.map(getRegionLabel).join(", ")}`}
+                  title={buildBlockedTooltip(keyword, blockedRegions)}
                   className="shrink-0 text-primary"
                 >
                   ⚠

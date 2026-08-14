@@ -4,6 +4,7 @@ import { and, eq, isNotNull, isNull, lt } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { keywords, trendSnapshots, relatedQueries, users, keywordCollectionStatus } from "../db/schema.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
+import { MAX_CONSECUTIVE_FAILURES } from "../services/trendCollector.service.js";
 
 export const keywordsRouter = Router();
 
@@ -313,23 +314,37 @@ async function getKeywordRegions(keywordId: number): Promise<string[]> {
   return Array.from(new Set([...snapshotGeos.map((s) => s.geo), ...relatedGeos.map((r) => r.geo)]));
 }
 
+interface KeywordRegionStatus {
+  blocked: boolean;
+  lastAttemptAt: string;
+  lastSuccessAt: string | null;
+  consecutiveFailures: number;
+}
+
+/**
+ * Per-region collection status for one keyword. A keyword only counts as
+ * "blocked" once it has failed as many times in a row as the collector
+ * itself treats as a likely rate limit — a single transient failure (a
+ * flaky related-queries request, say) must not light up the dashboard.
+ */
 async function getCollectionStatusForKeyword(
   keywordId: number,
   geos: string[]
-): Promise<Record<string, { blocked: boolean; lastAttemptAt: string; lastSuccessAt: string | null }>> {
+): Promise<Record<string, KeywordRegionStatus>> {
   const rows = await db
     .select()
     .from(keywordCollectionStatus)
     .where(eq(keywordCollectionStatus.keywordId, keywordId));
 
-  const byGeo: Record<string, { blocked: boolean; lastAttemptAt: string; lastSuccessAt: string | null }> = {};
+  const byGeo: Record<string, KeywordRegionStatus> = {};
   for (const geo of geos) {
     const row = rows.find((r) => r.geo === geo);
     if (row) {
       byGeo[geo] = {
-        blocked: row.consecutiveFailures > 0,
+        blocked: row.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES,
         lastAttemptAt: row.lastAttemptAt.toISOString(),
         lastSuccessAt: row.lastSuccessAt ? row.lastSuccessAt.toISOString() : null,
+        consecutiveFailures: row.consecutiveFailures,
       };
     }
   }
