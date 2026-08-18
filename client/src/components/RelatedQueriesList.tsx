@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { RelatedQuery } from "../lib/types";
-import { getRegionLabel } from "../lib/regions";
+import { useLanguage } from "../context/LanguageContext";
+import { regionLabel } from "../lib/i18n";
 import { Modal } from "./Modal";
 
 export interface RegionRelated {
@@ -31,11 +32,12 @@ function QueryRow({ item }: { item: RelatedQuery }) {
 
 /** Lists a keyword's rising related search queries, one column per active region, truncated with a "view all" modal. */
 export function RelatedQueriesList({ columns }: RelatedQueriesListProps) {
+  const { t } = useLanguage();
   const [expandedRegion, setExpandedRegion] = useState<string | null>(null);
 
   const hasAny = columns.some((c) => c.rising.length > 0);
   if (!hasAny) {
-    return <p className="text-sm text-text-muted">Sin related queries en alza todavía.</p>;
+    return <p className="text-sm text-text-muted">{t.relatedQueries.empty}</p>;
   }
 
   const expanded = columns.find((c) => c.region === expandedRegion) ?? null;
@@ -47,11 +49,11 @@ export function RelatedQueriesList({ columns }: RelatedQueriesListProps) {
           <div key={region}>
             {columns.length > 1 && (
               <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-text-muted">
-                {getRegionLabel(region)}
+                {regionLabel(t, region)}
               </p>
             )}
             {rising.length === 0 ? (
-              <p className="text-sm text-text-muted">Sin datos.</p>
+              <p className="text-sm text-text-muted">{t.relatedQueries.noDataForColumn}</p>
             ) : (
               <>
                 <ul className="space-y-1">
@@ -65,7 +67,7 @@ export function RelatedQueriesList({ columns }: RelatedQueriesListProps) {
                     onClick={() => setExpandedRegion(region)}
                     className="mt-1 text-xs font-medium text-primary hover:underline"
                   >
-                    Ver todas (+{rising.length - VISIBLE_LIMIT})
+                    {t.relatedQueries.viewAll(rising.length - VISIBLE_LIMIT)}
                   </button>
                 )}
               </>
@@ -74,7 +76,7 @@ export function RelatedQueriesList({ columns }: RelatedQueriesListProps) {
         ))}
       </div>
       {expanded && (
-        <Modal title={`Related queries — ${getRegionLabel(expanded.region)}`} onClose={() => setExpandedRegion(null)}>
+        <Modal title={t.relatedQueries.modalTitle(regionLabel(t, expanded.region))} onClose={() => setExpandedRegion(null)}>
           <ul className="space-y-1">
             {expanded.rising.map((item) => (
               <QueryRow key={item.query} item={item} />

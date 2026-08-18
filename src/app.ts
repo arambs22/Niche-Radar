@@ -1,5 +1,6 @@
 import express, { type NextFunction, type Request, type Response } from "express";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
 import { healthRouter } from "./routes/health.route.js";
 import { authRouter } from "./routes/auth.route.js";
 import { keywordsRouter } from "./routes/keywords.route.js";
@@ -8,14 +9,35 @@ import { trendsRouter } from "./routes/trends.route.js";
 import { internalRouter } from "./routes/internalCollect.route.js";
 import { AppError } from "./utils/errors.js";
 import { logger } from "./utils/logger.js";
+import { apiRateLimiter } from "./middleware/rateLimit.middleware.js";
 
 /** Builds and configures the Express application instance. */
 export function createApp() {
   const app = express();
+
+  // CSP allows Google Fonts (loaded by client/index.html) and inline style
+  // attributes (React/Recharts set these constantly via style={{...}}); the
+  // theme-flash-prevention script is an external file specifically so
+  // script-src can stay at 'self' with no inline-script exception.
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+          fontSrc: ["'self'", "https://fonts.gstatic.com"],
+          imgSrc: ["'self'", "data:"],
+          connectSrc: ["'self'"],
+        },
+      },
+    })
+  );
   app.use(express.json());
   app.use(cookieParser());
 
   app.use(healthRouter);
+  app.use("/api", apiRateLimiter);
   app.use("/api/auth", authRouter);
   app.use("/api/keywords", keywordsRouter);
   app.use("/api/regions", regionsRouter);

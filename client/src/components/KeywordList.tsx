@@ -1,5 +1,7 @@
+import { useRef, useState } from "react";
 import { api } from "../lib/api";
-import { getRegionLabel } from "../lib/regions";
+import { useLanguage } from "../context/LanguageContext";
+import { regionLabel } from "../lib/i18n";
 import type { Keyword } from "../lib/types";
 
 interface KeywordListProps {
@@ -20,22 +22,82 @@ function formatTimestamp(iso: string): string {
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
 }
 
-/** Tooltip for the blocked indicator: one line per blocked region with its last attempt and how many attempts have failed in a row. */
-function buildBlockedTooltip(keyword: Keyword, blockedRegions: string[]): string {
-  const lines = blockedRegions.map((geo) => {
-    const status = keyword.collectionStatus?.[geo];
-    const label = getRegionLabel(geo);
-    if (!status) return label;
-    const attempts = `${status.consecutiveFailures} ${
-      status.consecutiveFailures === 1 ? "intento fallido" : "intentos fallidos"
-    }`;
-    return `${label} — último intento: ${formatTimestamp(status.lastAttemptAt)}, ${attempts}`;
-  });
-  return `Google bloqueó la recolección en:\n${lines.join("\n")}`;
+interface BlockedIndicatorProps {
+  keyword: Keyword;
+  blockedRegions: string[];
+}
+
+/**
+ * Hover-revealed bubble explaining the blocked warning icon: what it means, plus a per-region
+ * breakdown of the failures behind it. Positioned with `fixed` coordinates computed from the
+ * trigger's bounding rect on hover/focus, rather than `absolute` inside the list — the keyword
+ * list scrolls (`overflow-y-auto`), which would otherwise clip the bubble.
+ */
+function BlockedIndicator({ keyword, blockedRegions }: BlockedIndicatorProps) {
+  const { t } = useLanguage();
+  const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null);
+  const triggerRef = useRef<HTMLSpanElement>(null);
+
+  function show() {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) setAnchor({ top: rect.bottom + 10, left: rect.left });
+  }
+  function hide() {
+    setAnchor(null);
+  }
+
+  return (
+    <>
+      <span
+        ref={triggerRef}
+        tabIndex={0}
+        role="img"
+        aria-label={t.blocked.ariaLabel}
+        className="shrink-0 cursor-default text-primary outline-none"
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        onFocus={show}
+        onBlur={hide}
+      >
+        ⚠
+      </span>
+      {anchor && (
+        <div
+          role="tooltip"
+          className="pointer-events-none fixed z-50 w-72 origin-top-left animate-[blocked-tooltip-in_150ms_ease-out]"
+          style={{ top: anchor.top, left: anchor.left }}
+        >
+          <span className="absolute -top-1.5 left-3 h-3 w-3 rotate-45 border-l border-t border-border bg-surface" />
+          <div className="relative rounded-lg border border-border bg-surface p-3.5 text-xs shadow-lg">
+            <p className="font-display text-sm font-semibold text-text">{t.blocked.title}</p>
+            <p className="mt-1 leading-relaxed text-text-muted">{t.blocked.explanation}</p>
+            <ul className="mt-2.5 space-y-2 border-t border-border pt-2.5">
+              {blockedRegions.map((geo) => {
+                const status = keyword.collectionStatus?.[geo];
+                return (
+                  <li key={geo}>
+                    <p className="font-medium text-text">{regionLabel(t, geo)}</p>
+                    {status && (
+                      <p className="text-text-muted">
+                        {t.blocked.lastAttempt(formatTimestamp(status.lastAttemptAt))} —{" "}
+                        {t.blocked.failedAttempts(status.consecutiveFailures)}
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
 /** Lists the user's tracked keywords; click to select, pause/resume automatic collection, or archive individually. */
 export function KeywordList({ keywords, activeRegions, onChanged, selectedId, onSelect }: KeywordListProps) {
+  const { t } = useLanguage();
+
   async function handleDelete(id: number) {
     await api.delete(`/keywords/${id}`);
     onChanged();
@@ -47,11 +109,11 @@ export function KeywordList({ keywords, activeRegions, onChanged, selectedId, on
   }
 
   if (keywords.length === 0) {
-    return <p className="text-sm text-text-muted">Todavía no trackeas ninguna keyword.</p>;
+    return <p className="text-sm text-text-muted">{t.keywordList.empty}</p>;
   }
 
   return (
-    <ul className="divide-y divide-border rounded-lg border border-border bg-surface shadow-sm">
+    <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
       {keywords.map((keyword) => {
         const blockedRegions = getBlockedRegions(keyword, activeRegions);
         return (
@@ -64,17 +126,12 @@ export function KeywordList({ keywords, activeRegions, onChanged, selectedId, on
           >
             <div className="flex min-w-0 items-center gap-2">
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-text">{keyword.term}</p>
+                <p className="truncate text-sm font-medium text-text" title={keyword.term}>
+                  {keyword.term}
+                </p>
                 <p className="text-xs text-text-muted">{keyword.category}</p>
               </div>
-              {blockedRegions.length > 0 && (
-                <span
-                  title={buildBlockedTooltip(keyword, blockedRegions)}
-                  className="shrink-0 text-primary"
-                >
-                  ⚠
-                </span>
-              )}
+              {blockedRegions.length > 0 && <BlockedIndicator keyword={keyword} blockedRegions={blockedRegions} />}
             </div>
             <div className="flex shrink-0 items-center gap-2 text-xs">
               <button
@@ -84,7 +141,7 @@ export function KeywordList({ keywords, activeRegions, onChanged, selectedId, on
                 }}
                 className="text-text-muted hover:underline"
               >
-                {keyword.autoCollectPaused ? "Reanudar" : "Pausar"}
+                {keyword.autoCollectPaused ? t.keywordList.resume : t.keywordList.pause}
               </button>
               <button
                 onClick={(e) => {
@@ -93,7 +150,7 @@ export function KeywordList({ keywords, activeRegions, onChanged, selectedId, on
                 }}
                 className="text-primary hover:underline"
               >
-                Archivar
+                {t.keywordList.archive}
               </button>
             </div>
           </li>

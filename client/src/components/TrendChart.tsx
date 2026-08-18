@@ -1,6 +1,8 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import type { TrendPoint } from "../lib/types";
-import { getRegionLabel, SERIES_COLORS } from "../lib/regions";
+import { SERIES_COLORS } from "../lib/regions";
+import { useLanguage } from "../context/LanguageContext";
+import { regionLabel } from "../lib/i18n";
 
 export interface RegionTimeline {
   region: string;
@@ -12,6 +14,7 @@ interface TrendChartProps {
 }
 
 const TICK_STYLE = { fontSize: 12, fontFamily: '"IBM Plex Mono", monospace', fill: "var(--color-text-muted)" };
+const TARGET_TICK_COUNT = 12;
 
 function seriesKey(region: string): string {
   return region === "" ? "worldwide" : region;
@@ -36,20 +39,30 @@ function mergeSeries(series: RegionTimeline[]): Record<string, number | string>[
   return Array.from(byDate.values()).sort((a, b) => String(a.date).localeCompare(String(b.date)));
 }
 
+/** Number of distinct dates plotted across all series — for a caller-rendered "showing N days" label alongside the chart. */
+export function countChartDays(series: RegionTimeline[]): number {
+  return new Set(series.flatMap((s) => s.timeline.map((point) => point.date))).size;
+}
+
 /** Line chart of one keyword's Google Trends interest-over-time, one line per active region, filling its container. */
 export function TrendChart({ series }: TrendChartProps) {
+  const { t } = useLanguage();
   const hasData = series.some((s) => s.timeline.length > 0);
   if (!hasData) {
-    return <p className="text-sm text-text-muted">Sin datos aún — corre la recolección.</p>;
+    return <p className="text-sm text-text-muted">{t.dashboard.noDataYet}</p>;
   }
 
   const data = mergeSeries(series);
+  // Recharts' automatic tick-thinning estimates label width to avoid overlap,
+  // which skips an uneven number of days between labels. A fixed numeric
+  // interval instead shows every Nth point, keeping the gaps uniform.
+  const tickInterval = Math.max(0, Math.ceil(data.length / TARGET_TICK_COUNT) - 1);
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data}>
+      <LineChart data={data} accessibilityLayer={false} margin={{ top: 8, right: 20, bottom: 4, left: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-        <XAxis dataKey="date" tick={TICK_STYLE} tickFormatter={formatTick} />
+        <XAxis dataKey="date" tick={TICK_STYLE} tickFormatter={formatTick} interval={tickInterval} />
         <YAxis tick={TICK_STYLE} />
         <Tooltip
           labelFormatter={(label) => formatTick(String(label))}
@@ -69,7 +82,7 @@ export function TrendChart({ series }: TrendChartProps) {
             key={region}
             type="monotone"
             dataKey={seriesKey(region)}
-            name={getRegionLabel(region)}
+            name={regionLabel(t, region)}
             stroke={SERIES_COLORS[index]}
             strokeWidth={2}
             dot={false}

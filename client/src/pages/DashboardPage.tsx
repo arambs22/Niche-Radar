@@ -3,11 +3,11 @@ import { Navbar } from "../components/Navbar";
 import { KeywordForm } from "../components/KeywordForm";
 import { KeywordList } from "../components/KeywordList";
 import { RegionTabs } from "../components/RegionTabs";
-import { TrendChart } from "../components/TrendChart";
+import { TrendChart, countChartDays } from "../components/TrendChart";
 import { RelatedQueriesList } from "../components/RelatedQueriesList";
-import { HistorySidebar } from "../components/HistorySidebar";
-import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
+import { useLanguage } from "../context/LanguageContext";
+import { regionLabel } from "../lib/i18n";
 import type { Keyword, KeywordTrend, KeywordRelated } from "../lib/types";
 
 const ACTIVE_REGIONS_KEY = "nicheradar_regions_active";
@@ -25,9 +25,14 @@ function loadRegionList(key: string, fallback: string[]): string[] {
   }
 }
 
-/** Protected landing page, filling the viewport with no page-level scroll: keyword management plus trend chart and related queries, compared across up to 3 active regions. */
+/**
+ * Protected landing page: keyword management plus trend chart and related queries, compared
+ * across up to 3 active regions. Clamped to the viewport height so a long keyword list scrolls
+ * inside its own panel instead of stretching the whole page; the page itself only scrolls as a
+ * fallback if the window is too short to fit everything at once.
+ */
 export function DashboardPage() {
-  const { user } = useAuth();
+  const { t } = useLanguage();
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [addedRegions, setAddedRegions] = useState<string[]>([]);
@@ -158,6 +163,8 @@ export function DashboardPage() {
     });
   }
 
+  const selectedKeyword = keywords.find((k) => k.id === selectedId) ?? null;
+
   const chartSeries = activeRegions.map((region) => ({
     region,
     timeline: trendsByRegion[region]?.find((t) => t.id === selectedId)?.timeline ?? [],
@@ -169,7 +176,7 @@ export function DashboardPage() {
   }));
 
   return (
-    <div className="flex min-h-screen flex-col bg-bg">
+    <div className="flex h-screen flex-col overflow-y-auto bg-bg">
       <Navbar />
       <main className="flex flex-1 flex-col gap-4 px-6 py-4">
         <RegionTabs
@@ -182,9 +189,9 @@ export function DashboardPage() {
         <div className="grid min-h-[480px] flex-1 gap-6 md:grid-cols-[320px_1fr]">
           <div className="flex min-h-0 flex-col gap-4">
             <KeywordForm onCreated={() => refetchKeywords()} />
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="keyword-scroll min-h-0 flex-1 overflow-y-auto">
               {loadingKeywords ? (
-                <p className="text-sm text-text-muted">Cargando keywords...</p>
+                <p className="text-sm text-text-muted">{t.dashboard.loadingKeywords}</p>
               ) : (
                 <KeywordList
                   keywords={keywords}
@@ -199,24 +206,32 @@ export function DashboardPage() {
           <div className="min-h-0 rounded-lg border border-border bg-surface p-6 shadow-sm">
             {selectedId === null ? (
               <p className="flex h-full items-center justify-center text-center text-sm text-text-muted">
-                Agrega o selecciona una keyword para ver su tendencia.
+                {t.dashboard.selectKeywordPrompt}
               </p>
             ) : activeRegions.length === 0 ? (
               <p className="flex h-full items-center justify-center text-center text-sm text-text-muted">
-                Activa al menos una región para ver su tendencia.
+                {t.dashboard.activateRegionPrompt}
               </p>
             ) : loadingTrends ? (
               <p className="flex h-full items-center justify-center text-center text-sm text-text-muted">
-                Cargando datos de tendencia...
+                {t.dashboard.loadingTrends}
               </p>
             ) : (
-              <div className="grid h-full grid-rows-[auto_1fr_auto_auto] gap-2">
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">Tendencia</h2>
+              <div className="grid h-full grid-rows-[auto_auto_1fr_auto_auto] gap-2">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">{t.dashboard.trend}</h2>
+                  <span className="text-xs text-text-muted">{t.dashboard.showingDays(countChartDays(chartSeries))}</span>
+                </div>
+                <p className="text-xs text-text-muted">
+                  {selectedKeyword && selectedKeyword.regions.length > 0
+                    ? t.dashboard.dataAvailableIn(selectedKeyword.regions.map((code) => regionLabel(t, code)).join(", "))
+                    : t.dashboard.noDataYet}
+                </p>
                 <div className="min-h-[260px]">
                   <TrendChart series={chartSeries} />
                 </div>
                 <h2 className="mt-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
-                  Related queries en alza
+                  {t.dashboard.relatedRising}
                 </h2>
                 <RelatedQueriesList columns={relatedColumns} />
               </div>
@@ -224,7 +239,6 @@ export function DashboardPage() {
           </div>
         </div>
       </main>
-      {user && <HistorySidebar initialRetentionDays={user.historyRetentionDays} />}
     </div>
   );
 }

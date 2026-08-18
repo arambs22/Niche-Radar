@@ -18,7 +18,7 @@ export const keywords = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     term: text("term").notNull(),
-    category: text("category").notNull().default("general"),
+    category: text("category").notNull().default("General"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     removedAt: timestamp("removed_at"),
     autoCollectPaused: boolean("auto_collect_paused").notNull().default(false),

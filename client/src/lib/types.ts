@@ -20,6 +20,7 @@ export interface Keyword {
   removedAt: string | null;
   autoCollectPaused: boolean;
   collectionStatus?: Record<string, KeywordRegionStatus>;
+  regions: string[];
 }
 
 export interface TrendPoint {

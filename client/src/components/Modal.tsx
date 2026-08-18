@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { useLanguage } from "../context/LanguageContext";
 
 interface ModalProps {
   title: string;
@@ -8,6 +9,8 @@ interface ModalProps {
 
 /** Centered overlay dialog; closes on Escape, backdrop click, or the × button. */
 export function Modal({ title, onClose, children }: ModalProps) {
+  const { t } = useLanguage();
+
   useEffect(() => {
     function handleKey(event: KeyboardEvent) {
       if (event.key === "Escape") onClose();
@@ -23,8 +26,8 @@ export function Modal({ title, onClose, children }: ModalProps) {
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-display text-lg font-semibold text-text">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Cerrar" className="text-text-muted hover:text-primary">
+          <h2 className="font-display text-lg font-semibold text-text truncate">{title}</h2>
+          <button type="button" onClick={onClose} aria-label={t.common.close} className="text-text-muted hover:text-primary">
             ×
           </button>
         </div>

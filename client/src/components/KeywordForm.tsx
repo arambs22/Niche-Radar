@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { api, ApiError, formatApiError } from "../lib/api";
+import { useLanguage } from "../context/LanguageContext";
 import type { Keyword } from "../lib/types";
 
 interface KeywordFormProps {
@@ -8,6 +9,7 @@ interface KeywordFormProps {
 
 /** Form to create a new tracked keyword; calls onCreated() after a successful POST. */
 export function KeywordForm({ onCreated }: KeywordFormProps) {
+  const { t } = useLanguage();
   const [term, setTerm] = useState("");
   const [category, setCategory] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +28,7 @@ export function KeywordForm({ onCreated }: KeywordFormProps) {
       setCategory("");
       onCreated();
     } catch (err) {
-      setError(err instanceof ApiError ? formatApiError(err.body.error) : "Algo salió mal, intenta de nuevo");
+      setError(err instanceof ApiError ? formatApiError(err.body.error) : t.auth.genericError);
     } finally {
       setSubmitting(false);
     }
@@ -35,24 +37,24 @@ export function KeywordForm({ onCreated }: KeywordFormProps) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4 shadow-sm">
       <div>
-        <label className="block text-xs font-medium text-text" htmlFor="term">Keyword</label>
+        <label className="block text-xs font-medium text-text" htmlFor="term">{t.keywordForm.keywordLabel}</label>
         <input
           id="term"
           required
           value={term}
           onChange={(e) => setTerm(e.target.value)}
           className="mt-1 rounded border border-border bg-bg px-3 py-1.5 text-sm text-text"
-          placeholder="Ex: Snoopy"
+          placeholder={t.keywordForm.keywordPlaceholder}
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-text" htmlFor="category">Categoría (opcional)</label>
+        <label className="block text-xs font-medium text-text" htmlFor="category">{t.keywordForm.categoryLabel}</label>
         <input
           id="category"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
           className="mt-1 rounded border border-border bg-bg px-3 py-1.5 text-sm text-text"
-          placeholder="Ex: Clipart"
+          placeholder={t.keywordForm.categoryPlaceholder}
         />
       </div>
       <button
@@ -60,7 +62,7 @@ export function KeywordForm({ onCreated }: KeywordFormProps) {
         disabled={submitting}
         className="rounded bg-primary px-4 py-1.5 text-sm font-medium text-surface hover:bg-primary-hover disabled:opacity-50"
       >
-        {submitting ? "Agregando..." : "Agregar"}
+        {submitting ? t.keywordForm.submitting : t.keywordForm.submit}
       </button>
       {error && <p className="w-full text-sm text-primary">{error}</p>}
     </form>

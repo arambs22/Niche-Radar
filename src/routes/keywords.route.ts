@@ -92,19 +92,15 @@ keywordsRouter.get("/", async (req, res, next) => {
       .orderBy(keywords.category, keywords.term);
 
     const geoParam = req.query.geo;
-    if (typeof geoParam !== "string") {
-      res.json(result);
-      return;
-    }
-
-    const geos = geoParam.split(",");
-    const withStatus = await Promise.all(
+    const geos = typeof geoParam === "string" ? geoParam.split(",") : null;
+    const withRegions = await Promise.all(
       result.map(async (kw) => ({
         ...kw,
-        collectionStatus: await getCollectionStatusForKeyword(kw.id, geos),
+        regions: await getKeywordRegions(kw.id),
+        ...(geos ? { collectionStatus: await getCollectionStatusForKeyword(kw.id, geos) } : {}),
       }))
     );
-    res.json(withStatus);
+    res.json(withRegions);
   } catch (err) {
     next(err);
   }
@@ -127,6 +123,36 @@ keywordsRouter.delete("/:id", async (req, res, next) => {
 
     if (archived.length === 0) {
       res.status(404).json({ error: "Keyword no encontrada" });
+      return;
+    }
+
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * DELETE /:id/permanent — permanently deletes an archived keyword owned by the authenticated
+ * user, ahead of its normal history retention expiry. Only archived keywords qualify — an active
+ * one has to be archived first, same precondition the restore endpoint uses in reverse. Its trend
+ * snapshots, related queries, and collection status all cascade-delete with it (see schema.ts).
+ */
+keywordsRouter.delete("/:id/permanent", async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
+
+    const deleted = await db
+      .delete(keywords)
+      .where(and(eq(keywords.id, id), eq(keywords.userId, req.userId!), isNotNull(keywords.removedAt)))
+      .returning({ id: keywords.id });
+
+    if (deleted.length === 0) {
+      res.status(404).json({ error: "Keyword archivada no encontrada" });
       return;
     }
 
