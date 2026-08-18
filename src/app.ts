@@ -1,3 +1,5 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import express, { type NextFunction, type Request, type Response } from "express";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
@@ -10,6 +12,10 @@ import { internalRouter } from "./routes/internalCollect.route.js";
 import { AppError } from "./utils/errors.js";
 import { logger } from "./utils/logger.js";
 import { apiRateLimiter } from "./middleware/rateLimit.middleware.js";
+
+// dist/app.js -> ../client/dist: the built React app, produced by `npm run build`.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const clientDistPath = path.join(__dirname, "../client/dist");
 
 /** Builds and configures the Express application instance. */
 export function createApp() {
@@ -45,6 +51,18 @@ export function createApp() {
   // so it would intercept /api/internal/* if registered first (Express matches in order).
   app.use("/api/internal", internalRouter);
   app.use("/api", trendsRouter);
+
+  // Serves the built React app (client/dist). Static assets first, then a
+  // catch-all for client-side routes (e.g. refreshing /dashboard directly);
+  // unmatched /api/* requests fall through to the JSON 404 below instead.
+  app.use(express.static(clientDistPath));
+  app.get("*", (req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith("/api")) {
+      next();
+      return;
+    }
+    res.sendFile(path.join(clientDistPath, "index.html"));
+  });
 
   // 404 handler, reached when no route above matched.
   app.use((req: Request, res: Response) => {

@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: niche-radar
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    # Keeps the schema in sync on every deploy, without mixing migrations into the app's own startup.
+    preDeployCommand: npm run db:migrate
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: niche-radar-db
+          property: connectionString
+      # Secrets: set manually in the Render dashboard, never committed here.
+      - key: JWT_SECRET
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+
+databases:
+  - name: niche-radar-db
+    plan: free
