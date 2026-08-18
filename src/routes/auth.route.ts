@@ -5,6 +5,7 @@ import { db } from "../db/client.js";
 import { users } from "../db/schema.js";
 import { hashPassword, verifyPassword, signToken, verifyToken } from "../utils/auth.js";
 import { env } from "../config/env.js";
+import { authRateLimiter } from "../middleware/rateLimit.middleware.js";
 
 export const authRouter = Router();
 
@@ -17,7 +18,7 @@ const credentialsSchema = z.object({
 });
 
 /** POST /register — creates a new user account and sets the auth cookie. */
-authRouter.post("/register", async (req, res, next) => {
+authRouter.post("/register", authRateLimiter, async (req, res, next) => {
   try {
     const parsed = credentialsSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -53,7 +54,7 @@ authRouter.post("/register", async (req, res, next) => {
 });
 
 /** POST /login — authenticates a user and sets the auth cookie. */
-authRouter.post("/login", async (req, res, next) => {
+authRouter.post("/login", authRateLimiter, async (req, res, next) => {
   try {
     const parsed = credentialsSchema.safeParse(req.body);
     if (!parsed.success) {

@@ -1,11 +1,16 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 import { ApiError, formatApiError } from "../lib/api";
+import { HeroWordmark } from "../components/HeroWordmark";
+import { LanguageToggle } from "../components/LanguageToggle";
+import { GridBackground } from "../components/GridBackground";
 
 /** Email/password login form; on success redirects to /dashboard. */
 export function LoginPage() {
   const { login } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,19 +25,26 @@ export function LoginPage() {
       await login(email, password);
       navigate("/dashboard");
     } catch (err) {
-      setError(err instanceof ApiError ? formatApiError(err.body.error) : "Algo salió mal, intenta de nuevo");
+      setError(err instanceof ApiError ? formatApiError(err.body.error) : t.auth.genericError);
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-bg">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4 rounded-lg border border-border bg-surface p-8 shadow-sm">
-        <h1 className="font-display text-2xl font-semibold text-text">Iniciar sesión</h1>
+    <div className="relative flex min-h-screen flex-col items-center justify-center gap-8 overflow-hidden bg-bg px-4 py-12">
+      <GridBackground />
+      <div className="absolute right-4 top-4">
+        <LanguageToggle />
+      </div>
+      <div className="relative">
+        <HeroWordmark />
+      </div>
+      <form onSubmit={handleSubmit} className="relative w-full max-w-sm space-y-4 rounded-lg border border-border bg-surface p-8 shadow-sm">
+        <h2 className="font-display text-xl font-semibold text-text">{t.auth.login.title}</h2>
         {error && <p className="rounded border border-primary/30 bg-primary/10 p-2 text-sm text-primary">{error}</p>}
         <div>
-          <label className="block text-sm font-medium text-text" htmlFor="email">Email</label>
+          <label className="block text-sm font-medium text-text" htmlFor="email">{t.auth.login.email}</label>
           <input
             id="email"
             type="email"
@@ -43,7 +55,7 @@ export function LoginPage() {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-text" htmlFor="password">Contraseña</label>
+          <label className="block text-sm font-medium text-text" htmlFor="password">{t.auth.login.password}</label>
           <input
             id="password"
             type="password"
@@ -58,10 +70,10 @@ export function LoginPage() {
           disabled={submitting}
           className="w-full rounded bg-primary py-2 text-sm font-medium text-surface hover:bg-primary-hover disabled:opacity-50"
         >
-          {submitting ? "Entrando..." : "Entrar"}
+          {submitting ? t.auth.login.submitting : t.auth.login.submit}
         </button>
         <p className="text-center text-sm text-text-muted">
-          ¿No tienes cuenta? <Link to="/register" className="text-primary underline">Regístrate</Link>
+          {t.auth.login.noAccount} <Link to="/register" className="text-primary underline">{t.auth.login.registerLink}</Link>
         </p>
       </form>
     </div>
