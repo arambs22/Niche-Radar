@@ -21,6 +21,13 @@ const clientDistPath = path.join(__dirname, "../client/dist");
 export function createApp() {
   const app = express();
 
+  // Render (and most PaaS hosts) puts the app behind a reverse proxy, so the real
+  // client IP only arrives via X-Forwarded-For. Without this, Express falls back to
+  // the proxy's own IP for every request, and express-rate-limit — which buckets by
+  // req.ip — ends up sharing one limit across every client instead of one per client.
+  // `1` trusts exactly the first hop (Render's edge), not an arbitrary chain.
+  app.set("trust proxy", 1);
+
   // CSP allows Google Fonts (loaded by client/index.html) and inline style
   // attributes (React/Recharts set these constantly via style={{...}}); the
   // theme-flash-prevention script is an external file specifically so
