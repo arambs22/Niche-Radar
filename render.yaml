@@ -3,7 +3,10 @@ services:
     name: niche-radar
     env: node
     plan: free
-    buildCommand: npm install && npm run build
+    # --include=dev is required: NODE_ENV=production (set below) makes npm skip
+    # devDependencies otherwise, but the build needs typescript/@types/* to compile
+    # and the start command needs tsx to run migrations.
+    buildCommand: npm install --include=dev && npm run build
     # preDeployCommand would be the cleaner spot for this, but it's a paid-plan-only
     # feature on Render — migrations run here instead. Safe on every start (including
     # free-tier wake-from-sleep): drizzle-kit only applies pending migrations, no-op otherwise.

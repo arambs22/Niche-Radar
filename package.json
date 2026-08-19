@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc && npm run build:client",
-    "build:client": "npm ci --prefix client && npm --prefix client run build",
+    "build:client": "npm ci --include=dev --prefix client && npm --prefix client run build",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
