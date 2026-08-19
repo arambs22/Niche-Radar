@@ -1,7 +1,11 @@
 # NicheRadar
 
-![Status](https://img.shields.io/badge/status-under%20development-yellow)
+![Status](https://img.shields.io/badge/status-live-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
+
+**Live demo:** [niche-radar.onrender.com](https://niche-radar.onrender.com)
+*(hosted on a free tier — the first request after a while may take ~30-60s
+to wake the server up)*
 
 A free, open-source tool to detect design and aesthetic trends **before they
 saturate** marketplaces like Etsy — built for creators of clip art and
@@ -10,24 +14,48 @@ AI-generated digital assets.
 ## Why
 
 Tools like eRank or Alura solve this problem, but they're paid and
-closed-source. NicheRadar aims to offer the essentials — Google Trends search
-volume tracking, rising related searches, and (optionally) cross-referencing
-with real Etsy listings to measure market saturation — for free, transparently,
-and easy to self-host.
+closed-source. NicheRadar offers the essentials — Google Trends search
+volume tracking and rising related searches, multi-region comparison, and
+a history of everything you've tracked — for free, transparently, and easy
+to self-host.
 
 Born as a personal project for [Kliparama](https://www.etsy.com/shop/Kliparama)
 (my clip art shop on Etsy) and as a technical portfolio piece.
 
+## Features
+
+- **Multi-user accounts** — email/password auth (JWT in an httpOnly cookie),
+  each user tracks their own independent set of keywords.
+- **Trend dashboard** — search volume history and rising related queries per
+  keyword, powered by Recharts, with side-by-side comparison across up to 3
+  regions at once (plus Worldwide).
+- **Keyword history** — archived keywords keep their collected data for a
+  configurable retention period (15/30/60/90 days) instead of being deleted
+  outright, and can be restored.
+- **Automatic daily collection** — a scheduled job (GitHub Actions → a
+  protected internal endpoint) pulls fresh Google Trends data every day,
+  with built-in rate-limit backoff and a circuit breaker so it degrades
+  gracefully instead of getting the server blocked by Google.
+- **English/Spanish UI**, light/dark theme, both persisted per browser.
+
 ## Tech Stack
 
-- **Backend:** TypeScript + Express
-- **Database:** PostgreSQL (via Docker Compose)
-- **ORM:** Drizzle ORM + drizzle-kit
-- **Trend data:** Google Trends (no API key required)
-- **Optional integration:** Etsy Open API v3 (requires your own API key)
-- **Dashboard:** TBD (will be documented once that phase is reached)
+| Layer | Technology |
+|---|---|
+| Frontend | React 19 + Vite + TypeScript + Tailwind CSS, React Router, Recharts |
+| Backend | TypeScript + Express |
+| Auth | bcrypt + JWT in an httpOnly cookie |
+| Database | PostgreSQL (Docker Compose locally, managed Postgres in production) |
+| ORM | Drizzle ORM + drizzle-kit |
+| Trend data | `google-trends-api` (unofficial, no API key required) |
+| Security | Helmet (with an explicit CSP), `express-rate-limit` |
+| Deploy | Render (`render.yaml` Blueprint — web service + managed Postgres) |
+| Scheduling | GitHub Actions (daily cron, triggers a protected collection endpoint) |
+| Optional integration | Etsy Open API v3 (bring your own API key) |
 
 ## Getting Started
+
+Want to run your own instance instead of using the [live demo](https://niche-radar.onrender.com)? It's fully self-hostable — your own Docker Postgres, your own secrets, independent from anyone else's copy.
 
 ### Prerequisites
 
@@ -38,70 +66,106 @@ Born as a personal project for [Kliparama](https://www.etsy.com/shop/Kliparama)
 
 1. Clone the repo:
 ```bash
-   git clone https://github.com/arambs22/Niche-Radar.git
-   cd Niche-Radar
+git clone https://github.com/arambs22/Niche-Radar.git
+cd Niche-Radar
 ```
 
-2. Install dependencies:
+2. Install backend dependencies:
 ```bash
-   npm install
+npm install
 ```
 
-3. Copy the environment variables file and adjust if needed:
+3. Install frontend dependencies:
 ```bash
-   cp .env.example .env
+cd client && npm install && cd ..
 ```
 
-4. Start PostgreSQL with Docker Compose:
+4. Copy the environment variables file:
 ```bash
-   docker compose up -d
+cp .env.example .env
 ```
-
-5. Start the development server (hot-reload):
+   Generate values for `JWT_SECRET` and `CRON_SECRET` (each needs to be at
+   least 32 characters — anything shorter fails validation on startup):
 ```bash
-   npm run dev
+openssl rand -base64 48
 ```
+   Run it twice and paste one result into each variable in `.env`.
 
-6. Verify everything is connected. The server runs on `http://localhost:3000`
-   by default. Check the health endpoint:
+5. Start PostgreSQL with Docker Compose:
 ```bash
-   curl http://localhost:3000/health
+docker compose up -d
 ```
 
-   Expected response:
+6. Apply the database schema:
+```bash
+npm run db:migrate
+```
+
+7. Start the backend (hot-reload):
+```bash
+npm run dev
+```
+
+8. In a **second terminal**, start the frontend:
+```bash
+cd client && npm run dev
+```
+
+9. Open **http://localhost:5173** — that's the dashboard. (Vite proxies API
+   requests to the backend on port 3000 automatically, so the session
+   cookie works in dev without any CORS setup.)
+
+   Optional sanity check on the backend directly:
+```bash
+curl http://localhost:3000/health
+```
 ```json
    {
      "status": "ok",
      "database": "connected",
-     "etsyIntegration": "disabled"
+     "etsyIntegration": "disabled",
+     "timestamp": "2026-08-18T12:00:00.000Z"
    }
 ```
+   `etsyIntegration` shows `"disabled"` unless you've configured an Etsy API
+   key in `.env` — that integration is entirely optional, the app works
+   fully without it using Google Trends data only.
 
-   `etsyIntegration` will show `"disabled"` unless you've configured an Etsy
-   API key in your `.env` file — Etsy integration is optional and the app
-   works fully without it, using Google Trends data only.
+### Automatic daily collection (optional, for your own deployment)
+
+The live demo collects fresh data once a day via
+`.github/workflows/collect-trends.yml`, which calls a `CRON_SECRET`-protected
+endpoint on the deployed instance. If you deploy your own copy and want the
+same, point that workflow's `NICHERADAR_URL` secret at your instance and set
+`CRON_SECRET` to match your `.env`. Locally, you can trigger a one-off
+collection yourself instead:
+```bash
+npm run collect -- --geo=US
+```
 
 ## Project Status
 
-🚧 Actively under development. See open [issues](https://github.com/arambs22/Niche-Radar/issues)
-and the commit history for current progress.
+The core product is complete and live: multi-user auth, the full trend
+dashboard (multi-region comparison, keyword history, i18n), hardened and
+deployed to production on Render. See the commit history for detailed
+progress.
+
+**Next up:** Etsy Open API v3 integration, to cross-reference trending
+keywords against real listing counts and measure actual market saturation
+(demand vs. supply), not just search volume on its own.
 
 ## Roadmap
 
-Ideas planeadas pero aún no implementadas:
+Ideas that are documented but intentionally **not** built yet:
 
-- **Configurable collection scheduling** — let the user choose between
-  running trend collection manually (on-demand) or automatically on a
-  schedule (e.g. daily, every 3 days), configurable per deployment.
-- **Business profile personalization** — allow a user to describe their
-  shop/niche and get tailored keyword suggestions instead of (or in
-  addition to) the default tracked list.
-- **Etsy Open API v3 integration** — cross-reference trending keywords
-  with real Etsy listings to measure market saturation (optional,
-  the app works without it).
-- **Multi-user support** — currently this project is designed to be
-  self-hosted by a single user/instance. A hosted, multi-tenant version
-  is a possible future direction.
+- **Etsy Open API v3 integration** — cross-reference trending keywords with
+  real Etsy listings to measure market saturation. The most valuable of the
+  three below; next in line.
+- **AI prompt suggestions** — once a trend is detected, suggest generation
+  prompts (for tools like Flux/ComfyUI) tailored to that aesthetic.
+- **Browser extension** — an overlay directly on Etsy's own pages, similar
+  to tools like Everbee, but focused on AI-generated digital product
+  sellers specifically (a gap the existing tools in that space don't cover).
 
 ## License
 
