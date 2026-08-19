@@ -4,9 +4,10 @@ services:
     env: node
     plan: free
     buildCommand: npm install && npm run build
-    startCommand: npm start
-    # Keeps the schema in sync on every deploy, without mixing migrations into the app's own startup.
-    preDeployCommand: npm run db:migrate
+    # preDeployCommand would be the cleaner spot for this, but it's a paid-plan-only
+    # feature on Render — migrations run here instead. Safe on every start (including
+    # free-tier wake-from-sleep): drizzle-kit only applies pending migrations, no-op otherwise.
+    startCommand: npm run db:migrate && npm start
     envVars:
       - key: NODE_ENV
         value: production
