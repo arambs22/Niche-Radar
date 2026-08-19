@@ -13,14 +13,11 @@ AI-generated digital assets.
 
 ## Why
 
-Tools like eRank or Alura solve this problem, but they're paid and
-closed-source. NicheRadar offers the essentials — Google Trends search
-volume tracking and rising related searches, multi-region comparison, and
-a history of everything you've tracked — for free, transparently, and easy
-to self-host.
-
-Born as a personal project for [Kliparama](https://www.etsy.com/shop/Kliparama)
-(my clip art shop on Etsy) and as a technical portfolio piece.
+Tools like eRank or Alura solve this problem, but they're paid and 
+closed source. NicheRadar offers the essentials: Google Trends search 
+volume tracking and rising related searches, multi region comparison, and
+a history of everything you've tracked, for free, transparently, and easy
+to self host.
 
 ## Features
 
