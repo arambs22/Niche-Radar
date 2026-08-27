@@ -1,5 +1,17 @@
 import type { Request, Response, NextFunction } from "express";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { env } from "../config/env.js";
+
+/**
+ * Constant-time string comparison via fixed-length SHA-256 digests, so
+ * neither the match/mismatch timing nor the raw input length can leak
+ * information about the secret being compared against.
+ */
+function safeCompare(a: string, b: string): boolean {
+  const hashA = createHash("sha256").update(a).digest();
+  const hashB = createHash("sha256").update(b).digest();
+  return timingSafeEqual(hashA, hashB);
+}
 
 /**
  * Rejects the request with 401 unless it carries the shared cron secret
@@ -11,7 +23,7 @@ export function requireCronSecret(req: Request, res: Response, next: NextFunctio
   const header = req.headers.authorization;
   const token = header?.startsWith("Bearer ") ? header.slice("Bearer ".length) : undefined;
 
-  if (!token || token !== env.CRON_SECRET) {
+  if (!token || !safeCompare(token, env.CRON_SECRET)) {
     res.status(401).json({ error: "No autorizado" });
     return;
   }
