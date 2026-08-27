@@ -6,6 +6,8 @@ import { users } from "../db/schema.js";
 import { hashPassword, verifyPassword, signToken, verifyToken } from "../utils/auth.js";
 import { env } from "../config/env.js";
 import { authRateLimiter } from "../middleware/rateLimit.middleware.js";
+import { createAuthToken } from "../services/authToken.service.js";
+import { sendVerificationEmail } from "../services/email.service.js";
 
 export const authRouter = Router();
 
@@ -38,6 +40,9 @@ authRouter.post("/register", authRateLimiter, async (req, res, next) => {
       .insert(users)
       .values({ email, passwordHash })
       .returning({ id: users.id, email: users.email, historyRetentionDays: users.historyRetentionDays, emailVerified: users.emailVerified });
+
+    const verificationToken = await createAuthToken(user!.id, "verify_email");
+    await sendVerificationEmail(user!.email, verificationToken);
 
     const token = signToken({ userId: user!.id });
     res.cookie(COOKIE_NAME, token, {
