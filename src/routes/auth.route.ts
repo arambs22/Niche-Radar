@@ -6,8 +6,8 @@ import { users } from "../db/schema.js";
 import { hashPassword, verifyPassword, signToken, verifyToken } from "../utils/auth.js";
 import { env } from "../config/env.js";
 import { authRateLimiter } from "../middleware/rateLimit.middleware.js";
-import { createAuthToken } from "../services/authToken.service.js";
-import { sendVerificationEmail } from "../services/email.service.js";
+import { createAuthToken, consumeAuthToken } from "../services/authToken.service.js";
+import { sendVerificationEmail, sendPasswordResetEmail } from "../services/email.service.js";
 import { logger } from "../utils/logger.js";
 
 export const authRouter = Router();
@@ -101,6 +101,81 @@ authRouter.post("/login", authRateLimiter, async (req, res, next) => {
 authRouter.post("/logout", (_req, res) => {
   res.clearCookie(COOKIE_NAME);
   res.status(204).send();
+});
+
+const requestResetSchema = z.object({ email: z.string().email() });
+
+/** POST /request-password-reset — always responds identically whether or not the email is registered, so as not to leak account existence. */
+authRouter.post("/request-password-reset", authRateLimiter, async (req, res, next) => {
+  try {
+    const parsed = requestResetSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Email inválido" });
+      return;
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.email, parsed.data.email)).limit(1);
+    if (user) {
+      try {
+        const token = await createAuthToken(user.id, "reset_password");
+        await sendPasswordResetEmail(user.email, token);
+      } catch (emailErr) {
+        // A Resend outage (or any failure here) must never change the caller-visible outcome —
+        // otherwise a 500 only on requests for real accounts would leak account existence, the
+        // exact thing this endpoint's generic response is meant to prevent.
+        logger.error("Failed to send password reset email", {
+          userId: user.id,
+          email: user.email,
+          error: emailErr instanceof Error ? emailErr.message : String(emailErr),
+        });
+      }
+    }
+
+    res.json({ message: "Si el email existe, te enviamos un link para restablecer tu contraseña" });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  newPassword: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
+});
+
+/** POST /reset-password — consumes a reset token, sets the new password, marks the email verified (this is equally strong proof of ownership as a dedicated verification link), and logs the user in. */
+authRouter.post("/reset-password", async (req, res, next) => {
+  try {
+    const parsed = resetPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+      return;
+    }
+
+    const userId = await consumeAuthToken(parsed.data.token, "reset_password");
+    if (!userId) {
+      res.status(400).json({ error: "El link es inválido o venció" });
+      return;
+    }
+
+    const passwordHash = await hashPassword(parsed.data.newPassword);
+    const [user] = await db
+      .update(users)
+      .set({ passwordHash, emailVerified: true })
+      .where(eq(users.id, userId))
+      .returning({ id: users.id, email: users.email, historyRetentionDays: users.historyRetentionDays, emailVerified: users.emailVerified });
+
+    const token = signToken({ userId: user!.id });
+    res.cookie(COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: COOKIE_MAX_AGE_MS,
+    });
+
+    res.json({ id: user!.id, email: user!.email, historyRetentionDays: user!.historyRetentionDays, emailVerified: user!.emailVerified });
+  } catch (err) {
+    next(err);
+  }
 });
 
 /** GET /me — returns the currently authenticated user, including their history retention preference. */
