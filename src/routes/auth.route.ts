@@ -8,6 +8,7 @@ import { env } from "../config/env.js";
 import { authRateLimiter } from "../middleware/rateLimit.middleware.js";
 import { createAuthToken } from "../services/authToken.service.js";
 import { sendVerificationEmail } from "../services/email.service.js";
+import { logger } from "../utils/logger.js";
 
 export const authRouter = Router();
 
@@ -41,8 +42,16 @@ authRouter.post("/register", authRateLimiter, async (req, res, next) => {
       .values({ email, passwordHash })
       .returning({ id: users.id, email: users.email, historyRetentionDays: users.historyRetentionDays, emailVerified: users.emailVerified });
 
-    const verificationToken = await createAuthToken(user!.id, "verify_email");
-    await sendVerificationEmail(user!.email, verificationToken);
+    try {
+      const verificationToken = await createAuthToken(user!.id, "verify_email");
+      await sendVerificationEmail(user!.email, verificationToken);
+    } catch (emailErr) {
+      logger.error("Failed to send verification email", {
+        userId: user!.id,
+        email: user!.email,
+        error: emailErr instanceof Error ? emailErr.message : String(emailErr),
+      });
+    }
 
     const token = signToken({ userId: user!.id });
     res.cookie(COOKIE_NAME, token, {
