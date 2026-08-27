@@ -22,6 +22,13 @@
       "when": 1786695605670,
       "tag": "0002_yummy_leper_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787872637103,
+      "tag": "0003_lively_wallflower",
+      "breakpoints": true
     }
   ]
 }

@@ -19,6 +19,13 @@ const envSchema = z.object({
   // features are disabled rather than the app failing to start.
   ETSY_API_KEY: z.string().optional(),
   ETSY_API_SECRET: z.string().optional(),
+
+  // Email (Resend) is optional: without a key, verification/reset
+  // links are logged instead of sent — dev, self-hosted instances, and tests all work
+  // with zero external dependency.
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().default("NicheRadar <onboarding@resend.dev>"),
+  APP_URL: z.string().url().default("http://localhost:5173"),
 });
 
 function loadEnv() {

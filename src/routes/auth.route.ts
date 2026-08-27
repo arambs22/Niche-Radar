@@ -37,7 +37,7 @@ authRouter.post("/register", authRateLimiter, async (req, res, next) => {
     const [user] = await db
       .insert(users)
       .values({ email, passwordHash })
-      .returning({ id: users.id, email: users.email });
+      .returning({ id: users.id, email: users.email, historyRetentionDays: users.historyRetentionDays, emailVerified: users.emailVerified });
 
     const token = signToken({ userId: user!.id });
     res.cookie(COOKIE_NAME, token, {
@@ -47,7 +47,7 @@ authRouter.post("/register", authRateLimiter, async (req, res, next) => {
       maxAge: COOKIE_MAX_AGE_MS,
     });
 
-    res.status(201).json({ id: user!.id, email: user!.email });
+    res.status(201).json({ id: user!.id, email: user!.email, historyRetentionDays: user!.historyRetentionDays, emailVerified: user!.emailVerified });
   } catch (err) {
     next(err);
   }
@@ -77,7 +77,7 @@ authRouter.post("/login", authRateLimiter, async (req, res, next) => {
       maxAge: COOKIE_MAX_AGE_MS,
     });
 
-    res.json({ id: user.id, email: user.email });
+    res.json({ id: user.id, email: user.email, historyRetentionDays: user.historyRetentionDays, emailVerified: user.emailVerified });
   } catch (err) {
     next(err);
   }
@@ -99,7 +99,7 @@ authRouter.get("/me", async (req, res) => {
   try {
     const payload = verifyToken(token);
     const [user] = await db
-      .select({ id: users.id, email: users.email, historyRetentionDays: users.historyRetentionDays })
+      .select({ id: users.id, email: users.email, historyRetentionDays: users.historyRetentionDays, emailVerified: users.emailVerified })
       .from(users)
       .where(eq(users.id, payload.userId))
       .limit(1);
@@ -141,7 +141,7 @@ authRouter.patch("/me", async (req, res, next) => {
       .update(users)
       .set({ historyRetentionDays: parsed.data.historyRetentionDays })
       .where(eq(users.id, payload.userId))
-      .returning({ id: users.id, email: users.email, historyRetentionDays: users.historyRetentionDays });
+      .returning({ id: users.id, email: users.email, historyRetentionDays: users.historyRetentionDays, emailVerified: users.emailVerified });
 
     res.json(user);
   } catch (err) {

@@ -5,7 +5,21 @@ export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  emailVerified: boolean("email_verified").notNull().default(false),
   historyRetentionDays: integer("history_retention_days").notNull().default(15),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+/** Single-use, hashed tokens emailed for email verification and password reset. Only the hash is ever stored — same principle as passwordHash. */
+export const authTokens = pgTable("auth_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull(),
+  purpose: text("purpose").notNull(), // "verify_email" | "reset_password"
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
