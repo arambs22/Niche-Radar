@@ -1,4 +1,5 @@
 import rateLimit from "express-rate-limit";
+import { env } from "../config/env.js";
 
 const WINDOW_MS = 15 * 60 * 1000;
 
@@ -8,6 +9,7 @@ export const apiRateLimiter = rateLimit({
   limit: 100,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => env.NODE_ENV === "test",
   message: { error: "Demasiadas solicitudes, intentá de nuevo más tarde" },
 });
 
@@ -17,5 +19,6 @@ export const authRateLimiter = rateLimit({
   limit: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => env.NODE_ENV === "test",
   message: { error: "Demasiados intentos, intentá de nuevo más tarde" },
 });
