@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useLanguage } from "../context/LanguageContext";
+import { AccountModal } from "./AccountModal";
 import { HistoryModal } from "./HistoryModal";
 import { LanguageToggle } from "./LanguageToggle";
 import { PulseDot } from "./PulseDot";
@@ -26,12 +27,30 @@ function HistoryIcon() {
   );
 }
 
+function AccountIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z"
+        fill="currentColor"
+      />
+      <path
+        d="M20.5 22C20.5 17.8579 16.6944 14.5 12 14.5C7.30558 14.5 3.5 17.8579 3.5 22"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 /** Top bar for authenticated pages: wordmark with a radar-pulse signature, theme toggle, history, language toggle, logged-in email, and logout. */
 export function Navbar() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { t } = useLanguage();
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   return (
     <>
@@ -48,6 +67,14 @@ export function Navbar() {
             className="flex items-center justify-center rounded p-1.5 text-text-muted hover:bg-bg hover:text-primary"
           >
             <HistoryIcon />
+          </button>
+          <button
+            type="button"
+            onClick={() => setAccountOpen(true)}
+            aria-label={t.account.title}
+            className="flex items-center justify-center rounded p-1.5 text-text-muted hover:bg-bg hover:text-primary"
+          >
+            <AccountIcon />
           </button>
         </span>
         <div className="flex items-center gap-4 text-sm text-text-muted">
@@ -79,6 +106,7 @@ export function Navbar() {
       {historyOpen && user && (
         <HistoryModal initialRetentionDays={user.historyRetentionDays} onClose={() => setHistoryOpen(false)} />
       )}
+      {accountOpen && <AccountModal onClose={() => setAccountOpen(false)} />}
     </>
   );
 }
