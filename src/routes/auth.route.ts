@@ -6,6 +6,7 @@ import { users } from "../db/schema.js";
 import { hashPassword, verifyPassword, signToken, verifyToken } from "../utils/auth.js";
 import { env } from "../config/env.js";
 import { authRateLimiter } from "../middleware/rateLimit.middleware.js";
+import { requireAuth } from "../middleware/auth.middleware.js";
 import { createAuthToken, consumeAuthToken } from "../services/authToken.service.js";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../services/email.service.js";
 import { logger } from "../utils/logger.js";
@@ -173,6 +174,53 @@ authRouter.post("/reset-password", async (req, res, next) => {
     });
 
     res.json({ id: user!.id, email: user!.email, historyRetentionDays: user!.historyRetentionDays, emailVerified: user!.emailVerified });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const verifyEmailSchema = z.object({ token: z.string().min(1) });
+
+/** POST /verify-email — consumes a verification token. Non-blocking: this only clears the dashboard banner, nothing else depends on it. */
+authRouter.post("/verify-email", async (req, res, next) => {
+  try {
+    const parsed = verifyEmailSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Token inválido" });
+      return;
+    }
+
+    const userId = await consumeAuthToken(parsed.data.token, "verify_email");
+    if (!userId) {
+      res.status(400).json({ error: "El link es inválido o venció" });
+      return;
+    }
+
+    const [user] = await db
+      .update(users)
+      .set({ emailVerified: true })
+      .where(eq(users.id, userId))
+      .returning({ id: users.id, email: users.email, historyRetentionDays: users.historyRetentionDays, emailVerified: users.emailVerified });
+
+    res.json(user);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** POST /resend-verification — issues a fresh verification token for the logged-in user; powers the dashboard banner's resend button. Rate-limited like request-password-reset, so it can't be used to bomb someone's inbox. */
+authRouter.post("/resend-verification", authRateLimiter, requireAuth, async (req, res, next) => {
+  try {
+    const [user] = await db.select().from(users).where(eq(users.id, req.userId!)).limit(1);
+    if (!user) {
+      res.status(401).json({ error: "No autenticado" });
+      return;
+    }
+
+    const token = await createAuthToken(user.id, "verify_email");
+    await sendVerificationEmail(user.email, token);
+
+    res.json({ message: "Te reenviamos el email de verificación" });
   } catch (err) {
     next(err);
   }
