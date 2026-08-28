@@ -88,15 +88,32 @@ openssl rand -base64 48
 ```
    Run it twice and paste one result into each variable in `.env`.
 
+   `RESEND_API_KEY`, `EMAIL_FROM`, and `APP_URL` are also optional, same
+   spirit as `ETSY_API_KEY` above — without `RESEND_API_KEY`,
+   verification/password-reset emails are just logged to the console
+   instead of sent, which is fine for local dev.
+
 5. Start PostgreSQL with Docker Compose:
 ```bash
 docker compose up -d
 ```
+   This also creates a second, empty `nicheradar_test` database on the same
+   container (via `docker/init-test-db.sql`), used only by the test suite
+   below — it never touches your regular `nicheradar` data.
 
 6. Apply the database schema:
 ```bash
 npm run db:migrate
 ```
+
+6a. (Optional) Run the test suite:
+```bash
+cp .env.test.example .env.test
+npm test
+```
+   The tests run against the real `nicheradar_test` database from step 5
+   (migrations included — `npm test` applies them automatically before
+   running), not mocks.
 
 7. Start the backend (hot-reload):
 ```bash
