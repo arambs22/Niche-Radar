@@ -285,3 +285,32 @@ authRouter.patch("/me", async (req, res, next) => {
     next(err);
   }
 });
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
+});
+
+/** POST /change-password — requires re-entering the current password even though the user already holds a valid session, as a second confirmation. */
+authRouter.post("/change-password", requireAuth, async (req, res, next) => {
+  try {
+    const parsed = changePasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+      return;
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, req.userId!)).limit(1);
+    if (!user || !(await verifyPassword(parsed.data.currentPassword, user.passwordHash))) {
+      res.status(401).json({ error: "Contraseña actual incorrecta" });
+      return;
+    }
+
+    const passwordHash = await hashPassword(parsed.data.newPassword);
+    await db.update(users).set({ passwordHash }).where(eq(users.id, user.id));
+
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+});
