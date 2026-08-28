@@ -2,6 +2,7 @@ export interface User {
   id: number;
   email: string;
   historyRetentionDays: number;
+  emailVerified: boolean;
 }
 
 export interface KeywordRegionStatus {
