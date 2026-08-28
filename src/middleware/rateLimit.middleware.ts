@@ -3,10 +3,16 @@ import { env } from "../config/env.js";
 
 const WINDOW_MS = 15 * 60 * 1000;
 
-/** Applied to all /api routes: a generous ceiling so normal dashboard usage never trips it. */
+/**
+ * Applied to all /api routes: a generous ceiling so normal dashboard usage
+ * never trips it. 100/15min turned out too low in practice — a single full
+ * dashboard load fires 5-9 requests (auth check, keywords, regions, plus
+ * trends+related per active region), so a couple of reloads or a normal
+ * session of switching regions/editing keywords could exhaust it.
+ */
 export const apiRateLimiter = rateLimit({
   windowMs: WINDOW_MS,
-  limit: 100,
+  limit: 300,
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => env.NODE_ENV === "test",

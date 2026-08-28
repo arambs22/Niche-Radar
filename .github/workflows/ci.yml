@@ -32,6 +32,9 @@ jobs:
       - name: Typecheck frontend
         run: npm run typecheck --prefix client
 
+      - name: Test frontend
+        run: npm test --prefix client
+
   test:
     runs-on: ubuntu-latest
     services:

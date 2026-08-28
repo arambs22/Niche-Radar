@@ -13,6 +13,8 @@ export default defineConfig({
     // Excludes nested git worktrees (e.g. .claude/worktrees/*) from test
     // discovery — without this, Vitest's default recursive glob picks up
     // any worktree's own tests/ directory and runs every test twice.
-    exclude: ["**/node_modules/**", "**/.claude/**"],
+    // client/ is excluded too — it has its own vitest.config.ts (no
+    // Postgres globalSetup) so its tests run via `npm test --prefix client`.
+    exclude: ["**/node_modules/**", "**/.claude/**", "**/client/**"],
   },
 });

@@ -126,6 +126,7 @@ export interface Translations {
     dataAvailableIn: (regions: string) => string;
     noDataYet: string;
     relatedRising: string;
+    keywordsError: string;
   };
   relatedQueries: {
     empty: string;
@@ -346,6 +347,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
       dataAvailableIn: (regions) => `Ya tienes datos en: ${regions}`,
       noDataYet: "Todavía no hay datos recolectados para esta keyword.",
       relatedRising: "Related queries en alza",
+      keywordsError: "No se pudieron cargar tus keywords. Intenta de nuevo en unos minutos.",
     },
     relatedQueries: {
       empty: "Sin related queries en alza todavía.",
@@ -497,6 +499,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
       dataAvailableIn: (regions) => `You already have data for: ${regions}`,
       noDataYet: "No data collected for this keyword yet.",
       relatedRising: "Rising related queries",
+      keywordsError: "Couldn't load your keywords. Try again in a few minutes.",
     },
     relatedQueries: {
       empty: "No rising related queries yet.",

@@ -6,7 +6,7 @@ import { RegionTabs } from "../components/RegionTabs";
 import { TrendChart, countChartDays } from "../components/TrendChart";
 import { RelatedQueriesList } from "../components/RelatedQueriesList";
 import { VerificationBanner } from "../components/VerificationBanner";
-import { api } from "../lib/api";
+import { api, isUnauthorized } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
 import { regionLabel } from "../lib/i18n";
@@ -44,6 +44,7 @@ export function DashboardPage() {
   const [relatedByRegion, setRelatedByRegion] = useState<Record<string, KeywordRelated[]>>({});
   const [loadingKeywords, setLoadingKeywords] = useState(true);
   const [loadingTrends, setLoadingTrends] = useState(true);
+  const [keywordsError, setKeywordsError] = useState(false);
   const hydratedRegions = useRef(false);
 
   useEffect(() => {
@@ -98,11 +99,23 @@ export function DashboardPage() {
 
   function refetchKeywords(regions: string[] = activeRegions) {
     const geoParam = regions.join(",");
-    return api.get<Keyword[]>(`/keywords?geo=${encodeURIComponent(geoParam)}`).then((res) => {
-      setKeywords(res);
-      setSelectedId((prev) => prev ?? res[0]?.id ?? null);
-      return res;
-    });
+    setKeywordsError(false);
+    return api
+      .get<Keyword[]>(`/keywords?geo=${encodeURIComponent(geoParam)}`)
+      .then((res) => {
+        setKeywords(res);
+        setSelectedId((prev) => prev ?? res[0]?.id ?? null);
+        return res;
+      })
+      .catch((err) => {
+        // A 401 means ProtectedRoute is about to redirect to /login anyway —
+        // no need to also flash an error. Anything else (rate limiting,
+        // a server hiccup) must not silently render as "no keywords": the
+        // request failed, it doesn't mean the account has none.
+        if (!isUnauthorized(err)) {
+          setKeywordsError(true);
+        }
+      });
   }
 
   useEffect(() => {
@@ -196,6 +209,8 @@ export function DashboardPage() {
             <div className="keyword-scroll min-h-0 flex-1 overflow-y-auto">
               {loadingKeywords ? (
                 <p className="text-sm text-text-muted">{t.dashboard.loadingKeywords}</p>
+              ) : keywordsError ? (
+                <p className="text-sm text-primary">{t.dashboard.keywordsError}</p>
               ) : (
                 <KeywordList
                   keywords={keywords}

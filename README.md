@@ -113,7 +113,8 @@ npm test
 ```
    The tests run against the real `nicheradar_test` database from step 5
    (migrations included — `npm test` applies them automatically before
-   running), not mocks.
+   running), not mocks. The frontend has its own, separate suite for
+   pure logic (`npm test --prefix client`) — no database needed.
 
 7. Start the backend (hot-reload):
 ```bash
