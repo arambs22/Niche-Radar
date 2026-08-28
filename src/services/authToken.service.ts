@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { authTokens } from "../db/schema.js";
 import { generateToken, hashToken } from "../utils/tokens.js";
@@ -33,16 +33,22 @@ export async function createAuthToken(userId: number, purpose: TokenPurpose): Pr
  */
 export async function consumeAuthToken(rawToken: string, purpose: TokenPurpose): Promise<number | null> {
   const tokenHash = hashToken(rawToken);
+  // A single atomic UPDATE ... RETURNING instead of a SELECT-then-UPDATE pair —
+  // the previous two-step version had a genuine TOCTOU race where two concurrent
+  // requests with the same raw token could both pass the SELECT before either
+  // UPDATE committed. Folding the expiry/purpose/unused checks into the WHERE
+  // clause means only one concurrent request can ever flip usedAt.
   const [row] = await db
-    .select()
-    .from(authTokens)
-    .where(and(eq(authTokens.tokenHash, tokenHash), eq(authTokens.purpose, purpose), isNull(authTokens.usedAt)))
-    .limit(1);
-
-  if (!row || row.expiresAt < new Date()) {
-    return null;
-  }
-
-  await db.update(authTokens).set({ usedAt: new Date() }).where(eq(authTokens.id, row.id));
-  return row.userId;
+    .update(authTokens)
+    .set({ usedAt: new Date() })
+    .where(
+      and(
+        eq(authTokens.tokenHash, tokenHash),
+        eq(authTokens.purpose, purpose),
+        isNull(authTokens.usedAt),
+        gt(authTokens.expiresAt, new Date()),
+      ),
+    )
+    .returning({ userId: authTokens.userId });
+  return row?.userId ?? null;
 }

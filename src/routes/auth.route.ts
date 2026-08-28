@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { users } from "../db/schema.js";
+import { users, authTokens } from "../db/schema.js";
 import { hashPassword, verifyPassword, signToken, verifyToken } from "../utils/auth.js";
 import { env } from "../config/env.js";
 import { authRateLimiter } from "../middleware/rateLimit.middleware.js";
@@ -165,6 +165,14 @@ authRouter.post("/reset-password", async (req, res, next) => {
       .where(eq(users.id, userId))
       .returning({ id: users.id, email: users.email, historyRetentionDays: users.historyRetentionDays, emailVerified: users.emailVerified });
 
+    // The token that authenticated this request is already marked used by
+    // consumeAuthToken above — this only clears any OTHER still-unused
+    // reset-password tokens for this user (e.g. an older reset email link
+    // still sitting in their inbox), so it can't be used after the fact.
+    await db
+      .delete(authTokens)
+      .where(and(eq(authTokens.userId, user!.id), eq(authTokens.purpose, "reset_password"), isNull(authTokens.usedAt)));
+
     const token = signToken({ userId: user!.id });
     res.cookie(COOKIE_NAME, token, {
       httpOnly: true,
@@ -308,6 +316,14 @@ authRouter.post("/change-password", requireAuth, async (req, res, next) => {
 
     const passwordHash = await hashPassword(parsed.data.newPassword);
     await db.update(users).set({ passwordHash }).where(eq(users.id, user.id));
+
+    // Invalidate any outstanding reset-password link — e.g. the user
+    // requested a reset, changed their mind, and used this endpoint instead
+    // while still logged in. Leaving that old token usable would let it
+    // reset the password again later, up to 45 minutes after it was issued.
+    await db
+      .delete(authTokens)
+      .where(and(eq(authTokens.userId, user.id), eq(authTokens.purpose, "reset_password"), isNull(authTokens.usedAt)));
 
     res.status(204).send();
   } catch (err) {
