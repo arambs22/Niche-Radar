@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
-import { api } from "../lib/api";
+import { ApiError, api, formatApiError } from "../lib/api";
 import { HeroWordmark } from "../components/HeroWordmark";
 import { LanguageToggle } from "../components/LanguageToggle";
 import { GridBackground } from "../components/GridBackground";
@@ -12,13 +12,17 @@ export function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    setError(null);
     setSubmitting(true);
     try {
       await api.post("/auth/request-password-reset", { email });
       setSent(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? formatApiError(err.body.error) : t.auth.genericError);
     } finally {
       setSubmitting(false);
     }
@@ -35,6 +39,7 @@ export function ForgotPasswordPage() {
       </div>
       <div className="relative w-full max-w-sm space-y-4 rounded-lg border border-border bg-surface p-8 shadow-sm">
         <h2 className="font-display text-xl font-semibold text-text">{t.auth.forgotPassword.title}</h2>
+        {error && <p className="rounded border border-primary/30 bg-primary/10 p-2 text-sm text-primary">{error}</p>}
         {sent ? (
           <p className="rounded border border-border bg-bg p-2 text-sm text-text">{t.auth.forgotPassword.success}</p>
         ) : (
