@@ -64,14 +64,25 @@ trendsRouter.get("/related", async (req, res, next) => {
       .orderBy(desc(relatedQueries.collectedAt));
 
     const result = allKeywords
-      .map((kw) => ({
-        id: kw.id,
-        term: kw.term,
-        category: kw.category,
-        rising: allRelated
-          .filter((r) => r.keywordId === kw.id)
-          .map((r) => ({ query: r.query, growthValue: r.growthValue })),
-      }))
+      .map((kw) => {
+        const kwRelated = allRelated.filter((r) => r.keywordId === kw.id);
+        // relatedQueries rows are never replaced between collection runs
+        // (unlike trendSnapshots, which has a uniqueness constraint) —
+        // GET /:id/related relies on that to show archived keywords' full
+        // history. Here, on the active dashboard, only the most recent
+        // collection's rows represent what's currently rising; without this
+        // filter every past run's rows pile up together. allRelated is
+        // ordered by collectedAt desc, so kwRelated[0] is the latest.
+        const latestDate = kwRelated[0]?.collectedAt.toISOString().slice(0, 10);
+        return {
+          id: kw.id,
+          term: kw.term,
+          category: kw.category,
+          rising: kwRelated
+            .filter((r) => r.collectedAt.toISOString().slice(0, 10) === latestDate)
+            .map((r) => ({ query: r.query, growthValue: r.growthValue })),
+        };
+      })
       .filter((kw) => kw.rising.length > 0);
 
     res.json(result);
