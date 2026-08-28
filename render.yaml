@@ -18,10 +18,20 @@ services:
         fromDatabase:
           name: niche-radar-db
           property: connectionString
+      # Public app URL — used to build verification/reset links in emails.
+      - key: APP_URL
+        value: https://niche-radar.onrender.com
       # Secrets: set manually in the Render dashboard, never committed here.
       - key: JWT_SECRET
         sync: false
       - key: CRON_SECRET
+        sync: false
+      # Email (Resend) — not configured yet (no verified domain). Until set,
+      # verification/reset emails just get logged instead of sent, same as
+      # local dev without RESEND_API_KEY.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
         sync: false
 
 databases:

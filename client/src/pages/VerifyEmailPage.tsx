@@ -12,7 +12,7 @@ import type { User } from "../lib/types";
  * token before the user opens it themselves.
  */
 export function VerifyEmailPage() {
-  const { setUser } = useAuth();
+  const { user, setUser } = useAuth();
   const { t } = useLanguage();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") ?? "";
@@ -23,8 +23,14 @@ export function VerifyEmailPage() {
     setStatus("confirming");
     setError(null);
     try {
-      const user = await api.post<User>("/auth/verify-email", { token });
-      setUser(user);
+      const updatedUser = await api.post<User>("/auth/verify-email", { token });
+      // Only sync the auth context if the visitor already had a session — this
+      // endpoint sets no cookie, so calling setUser without one would make the
+      // app believe someone is logged in when no session actually exists (the
+      // common real path is verifying from a browser where they're logged out).
+      if (user) {
+        setUser(updatedUser);
+      }
       setStatus("done");
     } catch (err) {
       setError(err instanceof ApiError ? formatApiError(err.body.error) : t.auth.verifyEmail.invalidToken);
