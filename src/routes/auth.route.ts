@@ -314,3 +314,29 @@ authRouter.post("/change-password", requireAuth, async (req, res, next) => {
     next(err);
   }
 });
+
+const deleteAccountSchema = z.object({ password: z.string().min(1) });
+
+/** DELETE /me — requires re-entering the password. Deletes only the users row; every dependent table cascades via the onDelete: "cascade" foreign keys already in schema.ts. */
+authRouter.delete("/me", requireAuth, async (req, res, next) => {
+  try {
+    const parsed = deleteAccountSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Falta la contraseña" });
+      return;
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, req.userId!)).limit(1);
+    if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
+      res.status(401).json({ error: "Contraseña incorrecta" });
+      return;
+    }
+
+    await db.delete(users).where(eq(users.id, user.id));
+
+    res.clearCookie(COOKIE_NAME);
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+});
