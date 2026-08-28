@@ -5,7 +5,9 @@ import { KeywordList } from "../components/KeywordList";
 import { RegionTabs } from "../components/RegionTabs";
 import { TrendChart, countChartDays } from "../components/TrendChart";
 import { RelatedQueriesList } from "../components/RelatedQueriesList";
+import { VerificationBanner } from "../components/VerificationBanner";
 import { api } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
 import { regionLabel } from "../lib/i18n";
 import type { Keyword, KeywordTrend, KeywordRelated } from "../lib/types";
@@ -33,6 +35,7 @@ function loadRegionList(key: string, fallback: string[]): string[] {
  */
 export function DashboardPage() {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [addedRegions, setAddedRegions] = useState<string[]>([]);
@@ -177,6 +180,7 @@ export function DashboardPage() {
 
   return (
     <div className="flex h-screen flex-col overflow-y-auto bg-bg">
+      {user && !user.emailVerified && <VerificationBanner />}
       <Navbar />
       <main className="flex flex-1 flex-col gap-4 px-6 py-4">
         <RegionTabs
