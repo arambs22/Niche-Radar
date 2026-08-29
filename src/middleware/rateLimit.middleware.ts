@@ -16,7 +16,7 @@ export const apiRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => env.NODE_ENV === "test",
-  message: { error: "Demasiadas solicitudes, intentá de nuevo más tarde" },
+  message: { error: "Demasiadas solicitudes, intenta de nuevo más tarde" },
 });
 
 /** Applied only to login/register: tight enough to blunt brute-force and credential-stuffing attempts. */
@@ -26,5 +26,5 @@ export const authRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => env.NODE_ENV === "test",
-  message: { error: "Demasiados intentos, intentá de nuevo más tarde" },
+  message: { error: "Demasiados intentos, intenta de nuevo más tarde" },
 });

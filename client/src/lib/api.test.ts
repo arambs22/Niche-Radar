@@ -7,7 +7,7 @@ describe("isUnauthorized", () => {
   });
 
   test("false for a 429 ApiError (rate limited) — must not be treated as logged out", () => {
-    expect(isUnauthorized(new ApiError(429, { error: "Demasiadas solicitudes, intentá de nuevo más tarde" }))).toBe(
+    expect(isUnauthorized(new ApiError(429, { error: "Demasiadas solicitudes, intenta de nuevo más tarde" }))).toBe(
       false
     );
   });
