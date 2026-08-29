@@ -42,11 +42,11 @@ to self host.
 | Frontend | React 19 + Vite + TypeScript + Tailwind CSS, React Router, Recharts |
 | Backend | TypeScript + Express |
 | Auth | bcrypt + JWT in an httpOnly cookie |
-| Database | PostgreSQL (Docker Compose locally, managed Postgres in production) |
+| Database | PostgreSQL (Docker Compose locally, [Neon](https://neon.tech) in production) |
 | ORM | Drizzle ORM + drizzle-kit |
 | Trend data | `google-trends-api` (unofficial, no API key required) |
 | Security | Helmet (with an explicit CSP), `express-rate-limit` |
-| Deploy | Render (`render.yaml` Blueprint — web service + managed Postgres) |
+| Deploy | Render (`render.yaml` Blueprint — web service only; the database lives on Neon) |
 | Scheduling | GitHub Actions (daily cron, triggers a protected collection endpoint) |
 | Optional integration | Etsy Open API v3 (bring your own API key) |
 

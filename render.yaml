@@ -14,10 +14,12 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Postgres is hosted on Neon (free tier), not Render — Render's own
+      # free Postgres deletes itself 44 days after creation with no
+      # backups, which isn't acceptable for real user data. Set manually
+      # in the Render dashboard, never committed here.
       - key: DATABASE_URL
-        fromDatabase:
-          name: niche-radar-db
-          property: connectionString
+        sync: false
       # Public app URL — used to build verification/reset links in emails.
       - key: APP_URL
         value: https://niche-radar.onrender.com
@@ -33,7 +35,3 @@ services:
         sync: false
       - key: EMAIL_FROM
         sync: false
-
-databases:
-  - name: niche-radar-db
-    plan: free

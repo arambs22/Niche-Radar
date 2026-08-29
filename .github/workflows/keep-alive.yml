@@ -1,0 +1,17 @@
+name: Keep Alive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      # Render's free web service sleeps after 15 min with no traffic and
+      # takes ~30-60s to wake on the next request. A ping every 10 minutes
+      # keeps it under that threshold so it never goes to sleep.
+      - name: Ping health endpoint
+        run: |
+          curl --fail --max-time 30 "${{ secrets.NICHERADAR_URL }}/health"
