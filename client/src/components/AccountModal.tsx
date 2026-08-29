@@ -2,8 +2,9 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
-import { ApiError, formatApiError, api } from "../lib/api";
+import { getErrorMessage, api } from "../lib/api";
 import { Modal } from "./Modal";
+import { FormError } from "./FormError";
 
 interface AccountModalProps {
   onClose: () => void;
@@ -42,7 +43,7 @@ export function AccountModal({ onClose }: AccountModalProps) {
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
-      setChangeError(err instanceof ApiError ? formatApiError(err.body.error) : t.auth.genericError);
+      setChangeError(getErrorMessage(err, t.auth.genericError));
     } finally {
       setChanging(false);
     }
@@ -60,7 +61,7 @@ export function AccountModal({ onClose }: AccountModalProps) {
       await logout();
       navigate("/login");
     } catch (err) {
-      setDeleteError(err instanceof ApiError ? formatApiError(err.body.error) : t.auth.genericError);
+      setDeleteError(getErrorMessage(err, t.auth.genericError));
     } finally {
       setDeleting(false);
     }
@@ -70,7 +71,7 @@ export function AccountModal({ onClose }: AccountModalProps) {
     <Modal title={t.account.title} onClose={onClose}>
       <form onSubmit={handleChangePassword} className="space-y-3 border-b border-border pb-6">
         <h3 className="text-sm font-semibold text-text">{t.account.changePassword.heading}</h3>
-        {changeError && <p className="rounded border border-primary/30 bg-primary/10 p-2 text-xs text-primary">{changeError}</p>}
+        {changeError && <FormError message={changeError} size="xs" />}
         {changeSuccess && <p className="rounded border border-border bg-bg p-2 text-xs text-text">{t.account.changePassword.success}</p>}
         <input
           type="password"
@@ -110,7 +111,7 @@ export function AccountModal({ onClose }: AccountModalProps) {
       <form onSubmit={handleDeleteAccount} className="space-y-3 pt-6">
         <h3 className="text-sm font-semibold text-text">{t.account.deleteAccount.heading}</h3>
         <p className="text-xs text-text-muted">{t.account.deleteAccount.warning}</p>
-        {deleteError && <p className="rounded border border-primary/30 bg-primary/10 p-2 text-xs text-primary">{deleteError}</p>}
+        {deleteError && <FormError message={deleteError} size="xs" />}
         <input
           type="password"
           required

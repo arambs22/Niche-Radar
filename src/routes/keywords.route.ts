@@ -1,6 +1,6 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { z } from "zod";
-import { and, eq, isNotNull, isNull, lt } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lt } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { keywords, trendSnapshots, relatedQueries, users, keywordCollectionStatus } from "../db/schema.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
@@ -9,6 +9,12 @@ import { MAX_CONSECUTIVE_FAILURES } from "../services/trendCollector.service.js"
 export const keywordsRouter = Router();
 
 keywordsRouter.use(requireAuth);
+
+/** Parses the `:id` route param, or null if it isn't a valid integer. */
+function parseIdParam(req: Request): number | null {
+  const id = Number(req.params.id);
+  return Number.isInteger(id) ? id : null;
+}
 
 const createKeywordSchema = z.object({
   term: z.string().trim().min(1, "El término no puede estar vacío"),
@@ -77,9 +83,8 @@ keywordsRouter.get("/", async (req, res, next) => {
         .where(eq(keywords.userId, req.userId!))
         .orderBy(keywords.createdAt);
 
-      const withRegions = await Promise.all(
-        all.map(async (kw) => ({ ...kw, regions: await getKeywordRegions(kw.id) }))
-      );
+      const regionsByKeyword = await getKeywordRegionsBatch(all.map((kw) => kw.id));
+      const withRegions = all.map((kw) => ({ ...kw, regions: regionsByKeyword.get(kw.id) ?? [] }));
 
       res.json(withRegions);
       return;
@@ -93,13 +98,14 @@ keywordsRouter.get("/", async (req, res, next) => {
 
     const geoParam = req.query.geo;
     const geos = typeof geoParam === "string" ? geoParam.split(",") : null;
-    const withRegions = await Promise.all(
-      result.map(async (kw) => ({
-        ...kw,
-        regions: await getKeywordRegions(kw.id),
-        ...(geos ? { collectionStatus: await getCollectionStatusForKeyword(kw.id, geos) } : {}),
-      }))
-    );
+    const keywordIds = result.map((kw) => kw.id);
+    const regionsByKeyword = await getKeywordRegionsBatch(keywordIds);
+    const statusByKeyword = geos ? await getCollectionStatusBatch(keywordIds, geos) : null;
+    const withRegions = result.map((kw) => ({
+      ...kw,
+      regions: regionsByKeyword.get(kw.id) ?? [],
+      ...(statusByKeyword ? { collectionStatus: statusByKeyword.get(kw.id) ?? {} } : {}),
+    }));
     res.json(withRegions);
   } catch (err) {
     next(err);
@@ -109,8 +115,8 @@ keywordsRouter.get("/", async (req, res, next) => {
 /** DELETE /:id — archives a keyword owned by the authenticated user (soft delete; its data is kept until it expires from history). */
 keywordsRouter.delete("/:id", async (req, res, next) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id)) {
+    const id = parseIdParam(req);
+    if (id === null) {
       res.status(400).json({ error: "ID inválido" });
       return;
     }
@@ -140,8 +146,8 @@ keywordsRouter.delete("/:id", async (req, res, next) => {
  */
 keywordsRouter.delete("/:id/permanent", async (req, res, next) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id)) {
+    const id = parseIdParam(req);
+    if (id === null) {
       res.status(400).json({ error: "ID inválido" });
       return;
     }
@@ -165,8 +171,8 @@ keywordsRouter.delete("/:id/permanent", async (req, res, next) => {
 /** PATCH /:id/restore — un-archives a keyword owned by the authenticated user. */
 keywordsRouter.patch("/:id/restore", async (req, res, next) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id)) {
+    const id = parseIdParam(req);
+    if (id === null) {
       res.status(400).json({ error: "ID inválido" });
       return;
     }
@@ -195,8 +201,8 @@ const autoCollectSchema = z.object({
 /** PATCH /:id/auto-collect — pauses or resumes automatic collection for a keyword owned by the authenticated user. */
 keywordsRouter.patch("/:id/auto-collect", async (req, res, next) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id)) {
+    const id = parseIdParam(req);
+    if (id === null) {
       res.status(400).json({ error: "ID inválido" });
       return;
     }
@@ -224,21 +230,26 @@ keywordsRouter.patch("/:id/auto-collect", async (req, res, next) => {
   }
 });
 
+/** Fetches a keyword by id, scoped to its owner — shared by the two per-keyword history endpoints below. */
+async function getOwnedKeyword(id: number, userId: number) {
+  const [keyword] = await db
+    .select()
+    .from(keywords)
+    .where(and(eq(keywords.id, id), eq(keywords.userId, userId)))
+    .limit(1);
+  return keyword ?? null;
+}
+
 /** GET /:id/trends — full trend history for one keyword, across every region it has data for, regardless of archived status. */
 keywordsRouter.get("/:id/trends", async (req, res, next) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id)) {
+    const id = parseIdParam(req);
+    if (id === null) {
       res.status(400).json({ error: "ID inválido" });
       return;
     }
 
-    const [keyword] = await db
-      .select()
-      .from(keywords)
-      .where(and(eq(keywords.id, id), eq(keywords.userId, req.userId!)))
-      .limit(1);
-
+    const keyword = await getOwnedKeyword(id, req.userId!);
     if (!keyword) {
       res.status(404).json({ error: "Keyword no encontrada" });
       return;
@@ -271,18 +282,13 @@ keywordsRouter.get("/:id/trends", async (req, res, next) => {
 /** GET /:id/related — full related-queries history for one keyword, across every region, regardless of archived status. */
 keywordsRouter.get("/:id/related", async (req, res, next) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id)) {
+    const id = parseIdParam(req);
+    if (id === null) {
       res.status(400).json({ error: "ID inválido" });
       return;
     }
 
-    const [keyword] = await db
-      .select()
-      .from(keywords)
-      .where(and(eq(keywords.id, id), eq(keywords.userId, req.userId!)))
-      .limit(1);
-
+    const keyword = await getOwnedKeyword(id, req.userId!);
     if (!keyword) {
       res.status(404).json({ error: "Keyword no encontrada" });
       return;
@@ -328,16 +334,26 @@ async function purgeExpired(userId: number, retentionDays: number): Promise<void
     .where(and(eq(keywords.userId, userId), isNotNull(keywords.removedAt), lt(keywords.removedAt, cutoff)));
 }
 
-async function getKeywordRegions(keywordId: number): Promise<string[]> {
+/** Batched replacement for calling a per-keyword region lookup in a loop: one query per source table (not one pair per keyword), grouped in memory. */
+async function getKeywordRegionsBatch(keywordIds: number[]): Promise<Map<number, string[]>> {
+  if (keywordIds.length === 0) return new Map();
+
   const snapshotGeos = await db
-    .selectDistinct({ geo: trendSnapshots.geo })
+    .selectDistinct({ keywordId: trendSnapshots.keywordId, geo: trendSnapshots.geo })
     .from(trendSnapshots)
-    .where(eq(trendSnapshots.keywordId, keywordId));
+    .where(inArray(trendSnapshots.keywordId, keywordIds));
   const relatedGeos = await db
-    .selectDistinct({ geo: relatedQueries.geo })
+    .selectDistinct({ keywordId: relatedQueries.keywordId, geo: relatedQueries.geo })
     .from(relatedQueries)
-    .where(eq(relatedQueries.keywordId, keywordId));
-  return Array.from(new Set([...snapshotGeos.map((s) => s.geo), ...relatedGeos.map((r) => r.geo)]));
+    .where(inArray(relatedQueries.keywordId, keywordIds));
+
+  const byKeyword = new Map<number, Set<string>>();
+  for (const { keywordId, geo } of [...snapshotGeos, ...relatedGeos]) {
+    const set = byKeyword.get(keywordId) ?? new Set<string>();
+    set.add(geo);
+    byKeyword.set(keywordId, set);
+  }
+  return new Map(Array.from(byKeyword, ([id, set]) => [id, Array.from(set)]));
 }
 
 interface KeywordRegionStatus {
@@ -348,31 +364,37 @@ interface KeywordRegionStatus {
 }
 
 /**
- * Per-region collection status for one keyword. A keyword only counts as
- * "blocked" once it has failed as many times in a row as the collector
- * itself treats as a likely rate limit — a single transient failure (a
- * flaky related-queries request, say) must not light up the dashboard.
+ * Batched replacement for calling a per-keyword collection-status lookup in a loop: one query for
+ * every keyword's status rows, grouped in memory. A keyword only counts as "blocked" once it has
+ * failed as many times in a row as the collector itself treats as a likely rate limit — a single
+ * transient failure (a flaky related-queries request, say) must not light up the dashboard.
  */
-async function getCollectionStatusForKeyword(
-  keywordId: number,
+async function getCollectionStatusBatch(
+  keywordIds: number[],
   geos: string[]
-): Promise<Record<string, KeywordRegionStatus>> {
+): Promise<Map<number, Record<string, KeywordRegionStatus>>> {
+  const result = new Map<number, Record<string, KeywordRegionStatus>>();
+  if (keywordIds.length === 0) return result;
+
   const rows = await db
     .select()
     .from(keywordCollectionStatus)
-    .where(eq(keywordCollectionStatus.keywordId, keywordId));
+    .where(inArray(keywordCollectionStatus.keywordId, keywordIds));
 
-  const byGeo: Record<string, KeywordRegionStatus> = {};
-  for (const geo of geos) {
-    const row = rows.find((r) => r.geo === geo);
-    if (row) {
-      byGeo[geo] = {
-        blocked: row.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES,
-        lastAttemptAt: row.lastAttemptAt.toISOString(),
-        lastSuccessAt: row.lastSuccessAt ? row.lastSuccessAt.toISOString() : null,
-        consecutiveFailures: row.consecutiveFailures,
-      };
+  for (const keywordId of keywordIds) {
+    const byGeo: Record<string, KeywordRegionStatus> = {};
+    for (const geo of geos) {
+      const row = rows.find((r) => r.keywordId === keywordId && r.geo === geo);
+      if (row) {
+        byGeo[geo] = {
+          blocked: row.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES,
+          lastAttemptAt: row.lastAttemptAt.toISOString(),
+          lastSuccessAt: row.lastSuccessAt ? row.lastSuccessAt.toISOString() : null,
+          consecutiveFailures: row.consecutiveFailures,
+        };
+      }
     }
+    result.set(keywordId, byGeo);
   }
-  return byGeo;
+  return result;
 }

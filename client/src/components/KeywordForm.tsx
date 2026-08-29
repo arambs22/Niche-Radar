@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { api, ApiError, formatApiError } from "../lib/api";
+import { api, getErrorMessage } from "../lib/api";
 import { useLanguage } from "../context/LanguageContext";
 import type { Keyword } from "../lib/types";
 
@@ -28,7 +28,7 @@ export function KeywordForm({ onCreated }: KeywordFormProps) {
       setCategory("");
       onCreated();
     } catch (err) {
-      setError(err instanceof ApiError ? formatApiError(err.body.error) : t.auth.genericError);
+      setError(getErrorMessage(err, t.auth.genericError));
     } finally {
       setSubmitting(false);
     }

@@ -9,7 +9,6 @@ import { keywordsRouter } from "./routes/keywords.route.js";
 import { regionsRouter } from "./routes/regions.route.js";
 import { trendsRouter } from "./routes/trends.route.js";
 import { internalRouter } from "./routes/internalCollect.route.js";
-import { AppError } from "./utils/errors.js";
 import { logger } from "./utils/logger.js";
 import { apiRateLimiter } from "./middleware/rateLimit.middleware.js";
 
@@ -54,8 +53,6 @@ export function createApp() {
   app.use("/api/auth", authRouter);
   app.use("/api/keywords", keywordsRouter);
   app.use("/api/regions", regionsRouter);
-  // Mount /api/internal before /api: trendsRouter's requireAuth middleware is path-unrestricted,
-  // so it would intercept /api/internal/* if registered first (Express matches in order).
   app.use("/api/internal", internalRouter);
   app.use("/api", trendsRouter);
 
@@ -79,11 +76,6 @@ export function createApp() {
   // Centralized error handler; must be declared last, with 4 params,
   // for Express to recognize it as error-handling middleware.
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    if (err instanceof AppError) {
-      logger.warn(err.message, { statusCode: err.statusCode });
-      res.status(err.statusCode).json({ error: err.message });
-      return;
-    }
     logger.error("Unhandled error", { err });
     res.status(500).json({ error: "Internal server error" });
   });

@@ -121,23 +121,20 @@ async function collectForKeyword(keywordId: number, term: string, geo: string): 
 
   try {
     const timeline = await fetchInterestOverTime(term, geo);
-    for (const point of timeline) {
+    if (timeline.length > 0) {
       await db
         .insert(trendSnapshots)
-        .values({ keywordId, geo, date: point.date, value: point.value })
+        .values(timeline.map((point) => ({ keywordId, geo, date: point.date, value: point.value })))
         .onConflictDoNothing();
     }
 
     await sleep(randomDelay());
 
     const rising = await fetchRelatedQueries(term, geo);
-    for (const item of rising) {
-      await db.insert(relatedQueries).values({
-        keywordId,
-        geo,
-        query: item.query,
-        growthValue: item.growthValue,
-      });
+    if (rising.length > 0) {
+      await db
+        .insert(relatedQueries)
+        .values(rising.map((item) => ({ keywordId, geo, query: item.query, growthValue: item.growthValue })));
     }
 
     await recordCollectionSuccess(keywordId, geo, attemptedAt);

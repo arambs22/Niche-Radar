@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { ApiError, isUnauthorized } from "./api";
+import { ApiError, isUnauthorized, getErrorMessage } from "./api";
 
 describe("isUnauthorized", () => {
   test("true for a 401 ApiError", () => {
@@ -18,5 +18,20 @@ describe("isUnauthorized", () => {
 
   test("false for a non-ApiError value", () => {
     expect(isUnauthorized(new Error("network failure"))).toBe(false);
+  });
+});
+
+describe("getErrorMessage", () => {
+  test("uses the backend's own message for an ApiError with a string error", () => {
+    expect(getErrorMessage(new ApiError(400, { error: "Email inválido" }), "fallback")).toBe("Email inválido");
+  });
+
+  test("flattens a Zod fieldErrors object for an ApiError", () => {
+    const err = new ApiError(400, { error: { password: ["La contraseña debe tener al menos 8 caracteres"] } });
+    expect(getErrorMessage(err, "fallback")).toBe("La contraseña debe tener al menos 8 caracteres");
+  });
+
+  test("uses the fallback for a non-ApiError value (e.g. a network failure)", () => {
+    expect(getErrorMessage(new Error("network failure"), "Algo salió mal")).toBe("Algo salió mal");
   });
 });

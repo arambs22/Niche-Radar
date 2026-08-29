@@ -1,20 +1,35 @@
 import { Router } from "express";
 import { db } from "../db/client.js";
 import { keywords, trendSnapshots, relatedQueries } from "../db/schema.js";
-import { and, eq, isNull, desc } from "drizzle-orm";
+import { and, eq, isNull, desc, inArray } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.middleware.js";
 
 export const trendsRouter = Router();
 
-trendsRouter.use(requireAuth);
+/**
+ * relatedQueries rows are never replaced between collection runs (unlike
+ * trendSnapshots, which has a uniqueness constraint) — GET /:id/related
+ * (keywords.route.ts) relies on that to show archived keywords' full
+ * history. Here, on the active dashboard, only the most recent collection's
+ * rows represent what's currently rising, so every other run's rows must be
+ * filtered out. `related` must already be sorted by collectedAt desc.
+ */
+function latestRelatedQueriesFor(related: (typeof relatedQueries.$inferSelect)[], keywordId: number) {
+  const forKeyword = related.filter((r) => r.keywordId === keywordId);
+  const latestDate = forKeyword[0]?.collectedAt.toISOString().slice(0, 10);
+  return forKeyword.filter((r) => r.collectedAt.toISOString().slice(0, 10) === latestDate);
+}
 
 /**
  * GET /api/trends?geo=US
  * Returns the snapshot history for the authenticated user's active
  * (non-archived) keywords for a given country (or worldwide if geo is
- * omitted), grouped by keyword.
+ * omitted), grouped by keyword. `requireAuth` is applied per-route (not
+ * router-wide) so this router can be mounted at the bare "/api" prefix
+ * without risking it also intercepting sibling routes like
+ * /api/internal/collect, which authenticates differently.
  */
-trendsRouter.get("/trends", async (req, res, next) => {
+trendsRouter.get("/trends", requireAuth, async (req, res, next) => {
   try {
     const geo = typeof req.query.geo === "string" ? req.query.geo : "";
 
@@ -22,10 +37,17 @@ trendsRouter.get("/trends", async (req, res, next) => {
       .select()
       .from(keywords)
       .where(and(eq(keywords.userId, req.userId!), isNull(keywords.removedAt)));
+
+    if (allKeywords.length === 0) {
+      res.json([]);
+      return;
+    }
+
+    const keywordIds = allKeywords.map((kw) => kw.id);
     const allSnapshots = await db
       .select()
       .from(trendSnapshots)
-      .where(eq(trendSnapshots.geo, geo))
+      .where(and(eq(trendSnapshots.geo, geo), inArray(trendSnapshots.keywordId, keywordIds)))
       .orderBy(trendSnapshots.date);
 
     const result = allKeywords.map((kw) => ({
@@ -49,7 +71,7 @@ trendsRouter.get("/trends", async (req, res, next) => {
  * authenticated user's active (non-archived) keywords in a given
  * country (or worldwide if geo is omitted).
  */
-trendsRouter.get("/related", async (req, res, next) => {
+trendsRouter.get("/related", requireAuth, async (req, res, next) => {
   try {
     const geo = typeof req.query.geo === "string" ? req.query.geo : "";
 
@@ -57,32 +79,26 @@ trendsRouter.get("/related", async (req, res, next) => {
       .select()
       .from(keywords)
       .where(and(eq(keywords.userId, req.userId!), isNull(keywords.removedAt)));
+
+    if (allKeywords.length === 0) {
+      res.json([]);
+      return;
+    }
+
+    const keywordIds = allKeywords.map((kw) => kw.id);
     const allRelated = await db
       .select()
       .from(relatedQueries)
-      .where(eq(relatedQueries.geo, geo))
+      .where(and(eq(relatedQueries.geo, geo), inArray(relatedQueries.keywordId, keywordIds)))
       .orderBy(desc(relatedQueries.collectedAt));
 
     const result = allKeywords
-      .map((kw) => {
-        const kwRelated = allRelated.filter((r) => r.keywordId === kw.id);
-        // relatedQueries rows are never replaced between collection runs
-        // (unlike trendSnapshots, which has a uniqueness constraint) —
-        // GET /:id/related relies on that to show archived keywords' full
-        // history. Here, on the active dashboard, only the most recent
-        // collection's rows represent what's currently rising; without this
-        // filter every past run's rows pile up together. allRelated is
-        // ordered by collectedAt desc, so kwRelated[0] is the latest.
-        const latestDate = kwRelated[0]?.collectedAt.toISOString().slice(0, 10);
-        return {
-          id: kw.id,
-          term: kw.term,
-          category: kw.category,
-          rising: kwRelated
-            .filter((r) => r.collectedAt.toISOString().slice(0, 10) === latestDate)
-            .map((r) => ({ query: r.query, growthValue: r.growthValue })),
-        };
-      })
+      .map((kw) => ({
+        id: kw.id,
+        term: kw.term,
+        category: kw.category,
+        rising: latestRelatedQueriesFor(allRelated, kw.id).map((r) => ({ query: r.query, growthValue: r.growthValue })),
+      }))
       .filter((kw) => kw.rising.length > 0);
 
     res.json(result);

@@ -2,10 +2,9 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
-import { ApiError, formatApiError } from "../lib/api";
-import { HeroWordmark } from "../components/HeroWordmark";
-import { LanguageToggle } from "../components/LanguageToggle";
-import { GridBackground } from "../components/GridBackground";
+import { getErrorMessage } from "../lib/api";
+import { AuthPageShell } from "../components/AuthPageShell";
+import { FormError } from "../components/FormError";
 
 /** Reads the reset token from the URL; submitting the form is the explicit user action that consumes it (never the page's own GET). */
 export function ResetPasswordPage() {
@@ -31,24 +30,17 @@ export function ResetPasswordPage() {
       await completePasswordReset(token, newPassword);
       navigate("/dashboard");
     } catch (err) {
-      setError(err instanceof ApiError ? formatApiError(err.body.error) : t.auth.resetPassword.invalidToken);
+      setError(getErrorMessage(err, t.auth.resetPassword.invalidToken));
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center gap-8 overflow-hidden bg-bg px-4 py-12">
-      <GridBackground />
-      <div className="absolute right-4 top-4">
-        <LanguageToggle />
-      </div>
-      <div className="relative">
-        <HeroWordmark />
-      </div>
+    <AuthPageShell>
       <form onSubmit={handleSubmit} className="relative w-full max-w-sm space-y-4 rounded-lg border border-border bg-surface p-8 shadow-sm">
         <h2 className="font-display text-xl font-semibold text-text">{t.auth.resetPassword.title}</h2>
-        {error && <p className="rounded border border-primary/30 bg-primary/10 p-2 text-sm text-primary">{error}</p>}
+        {error && <FormError message={error} />}
         <div>
           <label className="block text-sm font-medium text-text" htmlFor="newPassword">{t.auth.resetPassword.newPassword}</label>
           <input
@@ -84,6 +76,6 @@ export function ResetPasswordPage() {
           <Link to="/login" className="text-primary underline">{t.auth.forgotPassword.backToLogin}</Link>
         </p>
       </form>
-    </div>
+    </AuthPageShell>
   );
 }

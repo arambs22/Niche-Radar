@@ -1,9 +1,9 @@
-import { Router } from "express";
+import { Router, type Response } from "express";
 import { z } from "zod";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { users, authTokens } from "../db/schema.js";
-import { hashPassword, verifyPassword, signToken, verifyToken } from "../utils/auth.js";
+import { hashPassword, verifyPassword, signToken } from "../utils/auth.js";
 import { env } from "../config/env.js";
 import { authRateLimiter } from "../middleware/rateLimit.middleware.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
@@ -15,6 +15,35 @@ export const authRouter = Router();
 
 const COOKIE_NAME = "token";
 const COOKIE_MAX_AGE_MS = env.JWT_EXPIRES_IN_SECONDS * 1000;
+
+/** The only user fields ever safe to send to the client — never passwordHash. Use in every `.select()`/`.returning()` that responds to a request. */
+const USER_PUBLIC_COLUMNS = {
+  id: users.id,
+  email: users.email,
+  historyRetentionDays: users.historyRetentionDays,
+  emailVerified: users.emailVerified,
+};
+
+/** Picks the same public-safe fields off a full user row — for the few spots (like login) that fetch the full row for a purpose (password verification) that USER_PUBLIC_COLUMNS can't cover. */
+function toPublicUser(user: typeof users.$inferSelect) {
+  return {
+    id: user.id,
+    email: user.email,
+    historyRetentionDays: user.historyRetentionDays,
+    emailVerified: user.emailVerified,
+  };
+}
+
+/** Signs a fresh session JWT for the given user and sets it as the auth cookie. */
+function setSessionCookie(res: Response, userId: number) {
+  const token = signToken({ userId });
+  res.cookie(COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: COOKIE_MAX_AGE_MS,
+  });
+}
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -38,10 +67,7 @@ authRouter.post("/register", authRateLimiter, async (req, res, next) => {
     }
 
     const passwordHash = await hashPassword(password);
-    const [user] = await db
-      .insert(users)
-      .values({ email, passwordHash })
-      .returning({ id: users.id, email: users.email, historyRetentionDays: users.historyRetentionDays, emailVerified: users.emailVerified });
+    const [user] = await db.insert(users).values({ email, passwordHash }).returning(USER_PUBLIC_COLUMNS);
 
     try {
       const verificationToken = await createAuthToken(user!.id, "verify_email");
@@ -54,15 +80,8 @@ authRouter.post("/register", authRateLimiter, async (req, res, next) => {
       });
     }
 
-    const token = signToken({ userId: user!.id });
-    res.cookie(COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: COOKIE_MAX_AGE_MS,
-    });
-
-    res.status(201).json({ id: user!.id, email: user!.email, historyRetentionDays: user!.historyRetentionDays, emailVerified: user!.emailVerified });
+    setSessionCookie(res, user!.id);
+    res.status(201).json(user);
   } catch (err) {
     next(err);
   }
@@ -84,15 +103,8 @@ authRouter.post("/login", authRateLimiter, async (req, res, next) => {
       return;
     }
 
-    const token = signToken({ userId: user.id });
-    res.cookie(COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: COOKIE_MAX_AGE_MS,
-    });
-
-    res.json({ id: user.id, email: user.email, historyRetentionDays: user.historyRetentionDays, emailVerified: user.emailVerified });
+    setSessionCookie(res, user.id);
+    res.json(toPublicUser(user));
   } catch (err) {
     next(err);
   }
@@ -163,7 +175,7 @@ authRouter.post("/reset-password", async (req, res, next) => {
       .update(users)
       .set({ passwordHash, emailVerified: true })
       .where(eq(users.id, userId))
-      .returning({ id: users.id, email: users.email, historyRetentionDays: users.historyRetentionDays, emailVerified: users.emailVerified });
+      .returning(USER_PUBLIC_COLUMNS);
 
     // The token that authenticated this request is already marked used by
     // consumeAuthToken above — this only clears any OTHER still-unused
@@ -173,15 +185,8 @@ authRouter.post("/reset-password", async (req, res, next) => {
       .delete(authTokens)
       .where(and(eq(authTokens.userId, user!.id), eq(authTokens.purpose, "reset_password"), isNull(authTokens.usedAt)));
 
-    const token = signToken({ userId: user!.id });
-    res.cookie(COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: COOKIE_MAX_AGE_MS,
-    });
-
-    res.json({ id: user!.id, email: user!.email, historyRetentionDays: user!.historyRetentionDays, emailVerified: user!.emailVerified });
+    setSessionCookie(res, user!.id);
+    res.json(user);
   } catch (err) {
     next(err);
   }
@@ -204,11 +209,7 @@ authRouter.post("/verify-email", async (req, res, next) => {
       return;
     }
 
-    const [user] = await db
-      .update(users)
-      .set({ emailVerified: true })
-      .where(eq(users.id, userId))
-      .returning({ id: users.id, email: users.email, historyRetentionDays: users.historyRetentionDays, emailVerified: users.emailVerified });
+    const [user] = await db.update(users).set({ emailVerified: true }).where(eq(users.id, userId)).returning(USER_PUBLIC_COLUMNS);
 
     res.json(user);
   } catch (err) {
@@ -219,7 +220,7 @@ authRouter.post("/verify-email", async (req, res, next) => {
 /** POST /resend-verification — issues a fresh verification token for the logged-in user; powers the dashboard banner's resend button. Rate-limited like request-password-reset, so it can't be used to bomb someone's inbox. */
 authRouter.post("/resend-verification", authRateLimiter, requireAuth, async (req, res, next) => {
   try {
-    const [user] = await db.select().from(users).where(eq(users.id, req.userId!)).limit(1);
+    const [user] = await db.select(USER_PUBLIC_COLUMNS).from(users).where(eq(users.id, req.userId!)).limit(1);
     if (!user) {
       res.status(401).json({ error: "No autenticado" });
       return;
@@ -235,26 +236,17 @@ authRouter.post("/resend-verification", authRateLimiter, requireAuth, async (req
 });
 
 /** GET /me — returns the currently authenticated user, including their history retention preference. */
-authRouter.get("/me", async (req, res) => {
-  const token = req.cookies?.[COOKIE_NAME];
-  if (!token) {
-    res.status(401).json({ error: "No autenticado" });
-    return;
-  }
+authRouter.get("/me", requireAuth, async (req, res, next) => {
   try {
-    const payload = verifyToken(token);
-    const [user] = await db
-      .select({ id: users.id, email: users.email, historyRetentionDays: users.historyRetentionDays, emailVerified: users.emailVerified })
-      .from(users)
-      .where(eq(users.id, payload.userId))
-      .limit(1);
+    const [user] = await db.select(USER_PUBLIC_COLUMNS).from(users).where(eq(users.id, req.userId!)).limit(1);
     if (!user) {
+      // A valid token for a user deleted since it was issued (e.g. from another tab/device).
       res.status(401).json({ error: "No autenticado" });
       return;
     }
     res.json(user);
-  } catch {
-    res.status(401).json({ error: "Sesión inválida o expirada" });
+  } catch (err) {
+    next(err);
   }
 });
 
@@ -268,14 +260,8 @@ const updateMeSchema = z.object({
 });
 
 /** PATCH /me — updates the authenticated user's account settings (currently just history retention). */
-authRouter.patch("/me", async (req, res, next) => {
-  const token = req.cookies?.[COOKIE_NAME];
-  if (!token) {
-    res.status(401).json({ error: "No autenticado" });
-    return;
-  }
+authRouter.patch("/me", requireAuth, async (req, res, next) => {
   try {
-    const payload = verifyToken(token);
     const parsed = updateMeSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.flatten().fieldErrors });
@@ -285,8 +271,8 @@ authRouter.patch("/me", async (req, res, next) => {
     const [user] = await db
       .update(users)
       .set({ historyRetentionDays: parsed.data.historyRetentionDays })
-      .where(eq(users.id, payload.userId))
-      .returning({ id: users.id, email: users.email, historyRetentionDays: users.historyRetentionDays, emailVerified: users.emailVerified });
+      .where(eq(users.id, req.userId!))
+      .returning(USER_PUBLIC_COLUMNS);
 
     res.json(user);
   } catch (err) {

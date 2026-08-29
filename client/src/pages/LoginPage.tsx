@@ -2,10 +2,9 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
-import { ApiError, formatApiError } from "../lib/api";
-import { HeroWordmark } from "../components/HeroWordmark";
-import { LanguageToggle } from "../components/LanguageToggle";
-import { GridBackground } from "../components/GridBackground";
+import { getErrorMessage } from "../lib/api";
+import { AuthPageShell } from "../components/AuthPageShell";
+import { FormError } from "../components/FormError";
 
 /** Email/password login form; on success redirects to /dashboard. */
 export function LoginPage() {
@@ -25,24 +24,17 @@ export function LoginPage() {
       await login(email, password);
       navigate("/dashboard");
     } catch (err) {
-      setError(err instanceof ApiError ? formatApiError(err.body.error) : t.auth.genericError);
+      setError(getErrorMessage(err, t.auth.genericError));
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center gap-8 overflow-hidden bg-bg px-4 py-12">
-      <GridBackground />
-      <div className="absolute right-4 top-4">
-        <LanguageToggle />
-      </div>
-      <div className="relative">
-        <HeroWordmark />
-      </div>
+    <AuthPageShell>
       <form onSubmit={handleSubmit} className="relative w-full max-w-sm space-y-4 rounded-lg border border-border bg-surface p-8 shadow-sm">
         <h2 className="font-display text-xl font-semibold text-text">{t.auth.login.title}</h2>
-        {error && <p className="rounded border border-primary/30 bg-primary/10 p-2 text-sm text-primary">{error}</p>}
+        {error && <FormError message={error} />}
         <div>
           <label className="block text-sm font-medium text-text" htmlFor="email">{t.auth.login.email}</label>
           <input
@@ -79,6 +71,6 @@ export function LoginPage() {
           {t.auth.login.noAccount} <Link to="/register" className="text-primary underline">{t.auth.login.registerLink}</Link>
         </p>
       </form>
-    </div>
+    </AuthPageShell>
   );
 }

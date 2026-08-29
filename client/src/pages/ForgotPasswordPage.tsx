@@ -1,10 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
-import { ApiError, api, formatApiError } from "../lib/api";
-import { HeroWordmark } from "../components/HeroWordmark";
-import { LanguageToggle } from "../components/LanguageToggle";
-import { GridBackground } from "../components/GridBackground";
+import { api, getErrorMessage } from "../lib/api";
+import { AuthPageShell } from "../components/AuthPageShell";
+import { FormError } from "../components/FormError";
 
 /** Requests a password-reset email. Always shows the same success message, whether or not the email is registered. */
 export function ForgotPasswordPage() {
@@ -22,24 +21,17 @@ export function ForgotPasswordPage() {
       await api.post("/auth/request-password-reset", { email });
       setSent(true);
     } catch (err) {
-      setError(err instanceof ApiError ? formatApiError(err.body.error) : t.auth.genericError);
+      setError(getErrorMessage(err, t.auth.genericError));
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center gap-8 overflow-hidden bg-bg px-4 py-12">
-      <GridBackground />
-      <div className="absolute right-4 top-4">
-        <LanguageToggle />
-      </div>
-      <div className="relative">
-        <HeroWordmark />
-      </div>
+    <AuthPageShell>
       <div className="relative w-full max-w-sm space-y-4 rounded-lg border border-border bg-surface p-8 shadow-sm">
         <h2 className="font-display text-xl font-semibold text-text">{t.auth.forgotPassword.title}</h2>
-        {error && <p className="rounded border border-primary/30 bg-primary/10 p-2 text-sm text-primary">{error}</p>}
+        {error && <FormError message={error} />}
         {sent ? (
           <p className="rounded border border-border bg-bg p-2 text-sm text-text">{t.auth.forgotPassword.success}</p>
         ) : (
@@ -68,6 +60,6 @@ export function ForgotPasswordPage() {
           <Link to="/login" className="text-primary underline">{t.auth.forgotPassword.backToLogin}</Link>
         </p>
       </div>
-    </div>
+    </AuthPageShell>
   );
 }

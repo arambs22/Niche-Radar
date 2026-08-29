@@ -33,6 +33,11 @@ export function isUnauthorized(err: unknown): boolean {
   return err instanceof ApiError && err.status === 401;
 }
 
+/** The message a form should show for a caught error: the backend's own message for an ApiError, or a generic fallback for anything else (a network failure, for instance). */
+export function getErrorMessage(err: unknown, fallback: string): string {
+  return err instanceof ApiError ? formatApiError(err.body.error) : fallback;
+}
+
 const BASE_URL = "/api";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {

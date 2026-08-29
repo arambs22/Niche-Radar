@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
-import { ApiError, formatApiError } from "../lib/api";
-import { api } from "../lib/api";
+import { api, getErrorMessage } from "../lib/api";
+import { FormError } from "../components/FormError";
 import type { User } from "../lib/types";
 
 /**
@@ -33,7 +33,7 @@ export function VerifyEmailPage() {
       }
       setStatus("done");
     } catch (err) {
-      setError(err instanceof ApiError ? formatApiError(err.body.error) : t.auth.verifyEmail.invalidToken);
+      setError(getErrorMessage(err, t.auth.verifyEmail.invalidToken));
       setStatus("error");
     }
   }
@@ -46,7 +46,7 @@ export function VerifyEmailPage() {
           <p className="text-sm text-text">{t.auth.verifyEmail.success}</p>
         ) : (
           <>
-            {error && <p className="rounded border border-primary/30 bg-primary/10 p-2 text-sm text-primary">{error}</p>}
+            {error && <FormError message={error} />}
             <button
               type="button"
               onClick={handleConfirm}

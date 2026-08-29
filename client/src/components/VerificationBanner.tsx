@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLanguage } from "../context/LanguageContext";
-import { ApiError, api, formatApiError } from "../lib/api";
+import { api, getErrorMessage } from "../lib/api";
 
 /** Non-blocking reminder shown while the logged-in user's email isn't verified yet. Never gates any functionality — see spec §2. */
 export function VerificationBanner() {
@@ -16,7 +16,7 @@ export function VerificationBanner() {
       await api.post("/auth/resend-verification", {});
       setResent(true);
     } catch (err) {
-      setError(err instanceof ApiError ? formatApiError(err.body.error) : t.auth.genericError);
+      setError(getErrorMessage(err, t.auth.genericError));
     } finally {
       setSending(false);
     }
