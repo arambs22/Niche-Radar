@@ -6,7 +6,8 @@
  */
 (function () {
   var theme = localStorage.getItem("nicheradar_theme");
-  if (theme === "dark") {
+  // Dark is the default look — only an explicit stored "light" opts out of it.
+  if (theme !== "light") {
     document.documentElement.classList.add("dark");
   }
 })();

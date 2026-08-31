@@ -1,15 +1,11 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { useTheme } from "../context/ThemeContext";
 import { useLanguage } from "../context/LanguageContext";
 import { AccountModal } from "./AccountModal";
 import { HistoryModal } from "./HistoryModal";
 import { LanguageToggle } from "./LanguageToggle";
+import { ThemeToggle } from "./ThemeToggle";
 import { PulseDot } from "./PulseDot";
-import On from "../assets/On.svg";
-import Off from "../assets/Off.svg";
-import TonoClaro from "../assets/Tono_Claro.png";
-import TonoOscuro from "../assets/Tono_Oscuro.png";
 
 /** History icon inlined (rather than <img src=...>) so `currentColor` picks up the theme palette via Tailwind text classes. */
 function HistoryIcon() {
@@ -47,7 +43,6 @@ function AccountIcon() {
 /** Top bar for authenticated pages: wordmark with a radar-pulse signature, theme toggle, history, language toggle, logged-in email, and logout. */
 export function Navbar() {
   const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const { t } = useLanguage();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -78,20 +73,7 @@ export function Navbar() {
           </button>
         </span>
         <div className="flex items-center gap-4 text-sm text-text-muted">
-          <span className="flex items-center">
-            <img
-              src={theme === "light" ? TonoClaro : TonoOscuro}
-              alt=""
-              className="h-19 w-14"
-            />
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label={theme === "light" ? t.nav.toDarkMode : t.nav.toLightMode}
-            >
-              <img src={theme === "light" ? On : Off} alt="" className="h-12 w-12" />
-            </button>
-          </span>
+          <ThemeToggle />
           <span>{user?.email}</span>
           <LanguageToggle />
           <button

@@ -156,7 +156,7 @@ const resetPasswordSchema = z.object({
 });
 
 /** POST /reset-password — consumes a reset token, sets the new password, marks the email verified (this is equally strong proof of ownership as a dedicated verification link), and logs the user in. */
-authRouter.post("/reset-password", async (req, res, next) => {
+authRouter.post("/reset-password", authRateLimiter, async (req, res, next) => {
   try {
     const parsed = resetPasswordSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -286,7 +286,7 @@ const changePasswordSchema = z.object({
 });
 
 /** POST /change-password — requires re-entering the current password even though the user already holds a valid session, as a second confirmation. */
-authRouter.post("/change-password", requireAuth, async (req, res, next) => {
+authRouter.post("/change-password", authRateLimiter, requireAuth, async (req, res, next) => {
   try {
     const parsed = changePasswordSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -320,7 +320,7 @@ authRouter.post("/change-password", requireAuth, async (req, res, next) => {
 const deleteAccountSchema = z.object({ password: z.string().min(1) });
 
 /** DELETE /me — requires re-entering the password. Deletes only the users row; every dependent table cascades via the onDelete: "cascade" foreign keys already in schema.ts. */
-authRouter.delete("/me", requireAuth, async (req, res, next) => {
+authRouter.delete("/me", authRateLimiter, requireAuth, async (req, res, next) => {
   try {
     const parsed = deleteAccountSchema.safeParse(req.body);
     if (!parsed.success) {

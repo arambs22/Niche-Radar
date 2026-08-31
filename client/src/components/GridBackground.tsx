@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 
 const SPACING = 36;
-const TRAVELER_COUNT = 28;
+const TRAVELER_COUNT = 36;
 const BASE_DURATION_MS = 1500;
 const SEGMENT_LENGTHS = [1, 2, 3, 4];
 
@@ -55,17 +55,16 @@ function randomSegments(): number {
 }
 
 /**
- * Ambient background for the auth pages: a symmetric dot grid with a handful of light "signal"
- * snakes that travel node to node along the grid. Each snake has a fixed body length of 2, 3, or 4
- * edges: while it's still short of that length it just grows from its spawn point, and once it
- * reaches full length its tail continuously retraces the oldest edge while its head advances along
- * a newly (randomly) chosen one, bending at every vertex in between — no opacity fading, the
- * snake's own length does all the work. The dot grid is a plain CSS background (crisp at any size,
- * no JS); the snakes need per-frame interpolation CSS can't express on its own, so they're drawn on
- * a transparent canvas layered on top, aligned to the same grid. The stroke color is pre-mixed with
- * the page background at full opacity — two snakes are drawn as opaque, so crossing paths never
- * darken/brighten into a compositing seam the way overlapping translucent strokes would. Purely
- * decorative (aria-hidden) and static under prefers-reduced-motion.
+ * Ambient background for the auth pages: a handful of light "signal" snakes that travel node to
+ * node along an invisible grid. Each snake has a fixed body length of 2, 3, or 4 edges: while it's
+ * still short of that length it just grows from its spawn point, and once it reaches full length
+ * its tail continuously retraces the oldest edge while its head advances along a newly (randomly)
+ * chosen one, bending at every vertex in between — no opacity fading, the snake's own length does
+ * all the work. The snakes need per-frame interpolation CSS can't express on its own, so they're
+ * drawn on a transparent canvas. The stroke color is pre-mixed with the page background at full
+ * opacity — two snakes are drawn as opaque, so crossing paths never darken/brighten into a
+ * compositing seam the way overlapping translucent strokes would. Purely decorative (aria-hidden)
+ * and static under prefers-reduced-motion.
  */
 export function GridBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -198,13 +197,6 @@ export function GridBackground() {
 
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div
-        className="absolute inset-0 opacity-60"
-        style={{
-          backgroundImage: "radial-gradient(circle, var(--color-border) 1.4px, transparent 1.4px)",
-          backgroundSize: `${SPACING}px ${SPACING}px`,
-        }}
-      />
       <canvas ref={canvasRef} className="absolute inset-0" />
     </div>
   );

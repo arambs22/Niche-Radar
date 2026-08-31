@@ -17,8 +17,8 @@ function parseIdParam(req: Request): number | null {
 }
 
 const createKeywordSchema = z.object({
-  term: z.string().trim().min(1, "El término no puede estar vacío"),
-  category: z.string().trim().min(1).optional(),
+  term: z.string().trim().min(1, "El término no puede estar vacío").max(100, "El término es demasiado largo"),
+  category: z.string().trim().min(1).max(50, "La categoría es demasiado larga").optional(),
 });
 
 /** POST / — creates a keyword owned by the authenticated user, or restores it if it was previously archived under the same term. */

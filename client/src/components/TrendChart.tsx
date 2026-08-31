@@ -39,11 +39,6 @@ function mergeSeries(series: RegionTimeline[]): Record<string, number | string>[
   return Array.from(byDate.values()).sort((a, b) => String(a.date).localeCompare(String(b.date)));
 }
 
-/** Number of distinct dates plotted across all series — for a caller-rendered "showing N days" label alongside the chart. */
-export function countChartDays(series: RegionTimeline[]): number {
-  return new Set(series.flatMap((s) => s.timeline.map((point) => point.date))).size;
-}
-
 /** Line chart of one keyword's Google Trends interest-over-time, one line per active region, filling its container. */
 export function TrendChart({ series }: TrendChartProps) {
   const { t } = useLanguage();
