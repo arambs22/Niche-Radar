@@ -88,12 +88,12 @@ openssl rand -base64 48
 ```
    Run it twice and paste one result into each variable in `.env`.
 
-   `GMAIL_USER`, `GMAIL_APP_PASSWORD`, and `APP_URL` are also optional,
-   same spirit as `ETSY_API_KEY` above — without Gmail credentials,
-   verification/password-reset emails are just logged to the console
-   instead of sent, which is fine for local dev. `GMAIL_APP_PASSWORD` is a
-   Google Account "App Password" (requires 2-Step Verification), never
-   your real Gmail password.
+   `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, and `APP_URL` are also
+   optional, same spirit as `ETSY_API_KEY` above — without SendGrid
+   credentials, verification/password-reset emails are just logged to the
+   console instead of sent, which is fine for local dev. Sent over
+   SendGrid's HTTPS API rather than SMTP, since most free-tier hosts
+   (including Render) block outbound SMTP ports.
 
 5. Start PostgreSQL with Docker Compose:
 ```bash

@@ -33,7 +33,7 @@ describe("POST /api/auth/request-password-reset", () => {
   });
 
   test("still returns the generic response for an existing account even if sending the email throws", async () => {
-    const spy = vi.spyOn(emailService, "sendPasswordResetEmail").mockRejectedValue(new Error("SMTP is down"));
+    const spy = vi.spyOn(emailService, "sendPasswordResetEmail").mockRejectedValue(new Error("SendGrid is down"));
     await createTestUser({ email: "flaky-email@example.com" });
 
     const existing = await request(app).post("/api/auth/request-password-reset").send({ email: "flaky-email@example.com" });

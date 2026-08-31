@@ -28,10 +28,11 @@ services:
         sync: false
       - key: CRON_SECRET
         sync: false
-      # Email (Gmail SMTP) — set both to a Google Account "App Password"
-      # setup once you have one. Until set, verification/reset emails just
-      # get logged instead of sent, same as local dev without them.
-      - key: GMAIL_USER
+      # Email (SendGrid) — HTTPS API, not SMTP: Render's free tier blocks
+      # outbound traffic to SMTP ports, so a direct relay (e.g. Gmail) can't
+      # work here. Until both are set, verification/reset emails just get
+      # logged instead of sent, same as local dev without them.
+      - key: SENDGRID_API_KEY
         sync: false
-      - key: GMAIL_APP_PASSWORD
+      - key: SENDGRID_FROM_EMAIL
         sync: false

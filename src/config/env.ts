@@ -20,13 +20,15 @@ const envSchema = z.object({
   ETSY_API_KEY: z.string().optional(),
   ETSY_API_SECRET: z.string().optional(),
 
-  // Email (Gmail SMTP) is optional: without credentials, verification/reset
+  // Email (SendGrid) is optional: without credentials, verification/reset
   // links are logged instead of sent — dev, self-hosted instances, and tests
-  // all work with zero external dependency. GMAIL_APP_PASSWORD is a Google
-  // Account "App Password" (requires 2-Step Verification), never the
-  // account's real password.
-  GMAIL_USER: z.string().email().optional(),
-  GMAIL_APP_PASSWORD: z.string().optional(),
+  // all work with zero external dependency. Sent over SendGrid's HTTPS API,
+  // not raw SMTP — Render's free tier blocks outbound traffic to SMTP ports
+  // (25/465/587), so a direct SMTP relay (e.g. Gmail) can never work there.
+  // SENDGRID_FROM_EMAIL must be a Single Sender verified in the SendGrid
+  // dashboard; it doesn't need to be on a domain you own.
+  SENDGRID_API_KEY: z.string().optional(),
+  SENDGRID_FROM_EMAIL: z.string().email().optional(),
   APP_URL: z.string().url().default("http://localhost:5173"),
 });
 

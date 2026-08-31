@@ -3,7 +3,7 @@ import { logger } from "../../src/utils/logger.js";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../../src/services/email.service.js";
 
 describe("email.service", () => {
-  test("logs instead of sending when GMAIL_USER/GMAIL_APP_PASSWORD are unset", async () => {
+  test("logs instead of sending when SENDGRID_API_KEY/SENDGRID_FROM_EMAIL are unset", async () => {
     const spy = vi.spyOn(logger, "info").mockImplementation(() => {});
 
     await sendVerificationEmail("someone@example.com", "abc123");
