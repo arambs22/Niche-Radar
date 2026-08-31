@@ -133,7 +133,7 @@ authRouter.post("/request-password-reset", authRateLimiter, async (req, res, nex
         const token = await createAuthToken(user.id, "reset_password");
         await sendPasswordResetEmail(user.email, token);
       } catch (emailErr) {
-        // A Resend outage (or any failure here) must never change the caller-visible outcome —
+        // An SMTP outage (or any failure here) must never change the caller-visible outcome —
         // otherwise a 500 only on requests for real accounts would leak account existence, the
         // exact thing this endpoint's generic response is meant to prevent.
         logger.error("Failed to send password reset email", {

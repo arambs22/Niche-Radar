@@ -20,11 +20,13 @@ const envSchema = z.object({
   ETSY_API_KEY: z.string().optional(),
   ETSY_API_SECRET: z.string().optional(),
 
-  // Email (Resend) is optional: without a key, verification/reset
-  // links are logged instead of sent — dev, self-hosted instances, and tests all work
-  // with zero external dependency.
-  RESEND_API_KEY: z.string().optional(),
-  EMAIL_FROM: z.string().default("NicheRadar <onboarding@resend.dev>"),
+  // Email (Gmail SMTP) is optional: without credentials, verification/reset
+  // links are logged instead of sent — dev, self-hosted instances, and tests
+  // all work with zero external dependency. GMAIL_APP_PASSWORD is a Google
+  // Account "App Password" (requires 2-Step Verification), never the
+  // account's real password.
+  GMAIL_USER: z.string().email().optional(),
+  GMAIL_APP_PASSWORD: z.string().optional(),
   APP_URL: z.string().url().default("http://localhost:5173"),
 });
 

@@ -88,10 +88,12 @@ openssl rand -base64 48
 ```
    Run it twice and paste one result into each variable in `.env`.
 
-   `RESEND_API_KEY`, `EMAIL_FROM`, and `APP_URL` are also optional, same
-   spirit as `ETSY_API_KEY` above — without `RESEND_API_KEY`,
+   `GMAIL_USER`, `GMAIL_APP_PASSWORD`, and `APP_URL` are also optional,
+   same spirit as `ETSY_API_KEY` above — without Gmail credentials,
    verification/password-reset emails are just logged to the console
-   instead of sent, which is fine for local dev.
+   instead of sent, which is fine for local dev. `GMAIL_APP_PASSWORD` is a
+   Google Account "App Password" (requires 2-Step Verification), never
+   your real Gmail password.
 
 5. Start PostgreSQL with Docker Compose:
 ```bash

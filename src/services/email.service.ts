@@ -1,18 +1,23 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 
-const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
+const transporter =
+  env.GMAIL_USER && env.GMAIL_APP_PASSWORD
+    ? nodemailer.createTransport({
+        service: "gmail",
+        auth: { user: env.GMAIL_USER, pass: env.GMAIL_APP_PASSWORD },
+      })
+    : null;
 
 async function sendEmail(to: string, subject: string, html: string): Promise<void> {
-  if (!resend) {
+  if (!transporter) {
     logger.info(`[email:disabled] Would send "${subject}" to ${to}`, { html });
     return;
   }
-  const { error } = await resend.emails.send({ from: env.EMAIL_FROM, to, subject, html });
-  if (error) {
-    throw new Error(`Resend failed to send email: ${error.message}`);
-  }
+  // Gmail's SMTP relay rejects a From address that doesn't match the
+  // authenticated account, so only the display name is customizable here.
+  await transporter.sendMail({ from: `NicheRadar <${env.GMAIL_USER}>`, to, subject, html });
 }
 
 /** Sends the "verify your email" link, valid for 24 hours (see TTL_MS in authToken.service.ts). */

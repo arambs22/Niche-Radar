@@ -28,10 +28,10 @@ services:
         sync: false
       - key: CRON_SECRET
         sync: false
-      # Email (Resend) — not configured yet (no verified domain). Until set,
-      # verification/reset emails just get logged instead of sent, same as
-      # local dev without RESEND_API_KEY.
-      - key: RESEND_API_KEY
+      # Email (Gmail SMTP) — set both to a Google Account "App Password"
+      # setup once you have one. Until set, verification/reset emails just
+      # get logged instead of sent, same as local dev without them.
+      - key: GMAIL_USER
         sync: false
-      - key: EMAIL_FROM
+      - key: GMAIL_APP_PASSWORD
         sync: false
